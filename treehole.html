@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>树洞 · 温州市滨海高级中学</title>
+<style>
+  :root{--blue:#2f7bff;--blue-d:#1346c7;--cyan:#35d0ff;--bg1:#eef5ff;--bg2:#dcebff;--card:#fff;
+    --text:#14233f;--muted:#6b7c9c;--line:#d4e3ff;--glow:rgba(47,123,255,.22)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--text);position:relative;
+    overflow-x:hidden;min-height:100vh;padding:0 12px 70px;background:linear-gradient(165deg,#eef5ff,#dcebff 55%,#e9f1ff)}
+  .wrap{position:relative;z-index:1;max-width:620px;margin:0 auto}
+  .topbar{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 4px 2px}
+  .btn-ghost{background:rgba(255,255,255,.8);border:1px solid var(--line);color:var(--blue-d);border-radius:10px;
+    padding:8px 16px;font-size:14px;cursor:pointer}
+  .user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:30px;padding:5px 6px 5px 12px}
+  .user-chip .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .user-chip .nm{font-size:14px;font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nav{display:flex;gap:6px;justify-content:center;margin:8px 0 2px;flex-wrap:wrap}
+  .nav a{font-size:13px;padding:6px 13px;border-radius:18px;text-decoration:none;color:var(--muted);border:1px solid var(--line);background:rgba(255,255,255,.7)}
+  .nav a.active{color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan));border-color:transparent;box-shadow:0 4px 12px var(--glow)}
+  header{text-align:center;padding:8px 0}
+  .badge{width:64px;height:64px;filter:drop-shadow(0 6px 16px var(--glow))}
+  .title{font-size:22px;font-weight:800;background:linear-gradient(90deg,var(--blue-d),var(--blue),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:13px;margin-top:3px}
+  .composer{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(47,123,255,.10);position:relative;overflow:hidden}
+  .composer::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+  .composer .hint{font-size:12px;color:var(--muted);margin-bottom:8px}
+  textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:15px;resize:vertical;min-height:90px;outline:none;background:#f7fbff;font-family:inherit}
+  textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,123,255,.12)}
+  .row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .file-btn{position:relative;overflow:hidden;border:1px dashed var(--blue);color:var(--blue-d);border-radius:10px;padding:9px 12px;font-size:13px;cursor:pointer}
+  .file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .submit{margin-left:auto;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 16px var(--glow)}
+  .wall{margin-top:4px}
+  .post{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin:12px 0;box-shadow:0 6px 18px rgba(47,123,255,.08);position:relative;overflow:hidden}
+  .post::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--blue),var(--cyan))}
+  .post .top{display:flex;align-items:center;gap:10px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:15px}
+  .post .name{font-weight:700;font-size:14px}
+  .post .time{color:var(--muted);font-size:12px}
+  .post .content{margin:10px 0;font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+  .post .pic{margin:8px 0;border-radius:12px;max-width:100%}
+  .post .acts{display:flex;gap:18px;color:var(--muted);font-size:14px;border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
+  .post .acts button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;display:flex;align-items:center;gap:5px}
+  .post .acts .like.on{color:var(--blue-d);font-weight:600}
+  .comments{margin-top:10px;display:none;border-top:1px dashed var(--line);padding-top:10px}
+  .comments.show{display:block}
+  .cmt{font-size:14px;line-height:1.5;margin:6px 0;padding:8px 10px;background:#f4f9ff;border-radius:10px}
+  .cmt b{color:var(--blue-d)}
+  .cmt-form{display:flex;gap:8px;margin-top:8px}
+  .cmt-form input{flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#f7fbff}
+  .cmt-form button{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:9px;padding:0 14px;font-size:13px;cursor:pointer}
+  .more{display:block;width:100%;margin:16px 0;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px;color:var(--blue-d);font-size:14px;cursor:pointer}
+  .empty{text-align:center;color:var(--muted);padding:30px 0}
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(20,35,63,.94);color:#fff;padding:10px 18px;border-radius:22px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:200}
+  .toast.show{opacity:1}
+  /* modals */
+  .mask{position:fixed;inset:0;background:rgba(10,22,46,.45);backdrop-filter:blur(3px);z-index:150;display:none;align-items:center;justify-content:center;padding:18px}
+  .mask.show{display:flex}
+  .modal{background:#fff;border-radius:18px;padding:22px 20px;width:100%;max-width:340px;box-shadow:0 20px 50px rgba(20,35,63,.3);position:relative;animation:pop .2s ease}
+  @keyframes pop{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+  .modal h3{font-size:19px;color:var(--blue-d);margin-bottom:4px;text-align:center}
+  .modal p.h{text-align:center;color:var(--muted);font-size:12px;margin-bottom:16px}
+  .modal label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  .modal input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;outline:none;background:#f7fbff}
+  .modal input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,123,255,.12)}
+  .modal .mbtn{width:100%;margin-top:18px;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:11px;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
+  .modal .alt{text-align:center;font-size:13px;color:var(--muted);margin-top:14px}
+  .modal .alt a{color:var(--blue);cursor:pointer;text-decoration:none;font-weight:600}
+  .modal .close{position:absolute;right:14px;top:12px;font-size:20px;color:var(--muted);cursor:pointer;line-height:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar" id="authArea"><button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button></div>
+  <nav class="nav">
+    <a href="index.html">表白墙</a><a href="treehole.html" class="active">树洞</a>
+    <a href="forum.html">论坛</a><a href="qa.html">问答</a><a href="study.html">学习专区</a><a href="me.html">我的</a>
+  </nav>
+  <header>
+    <img class="badge" src="/badge.png" alt="校徽" onerror="this.style.display='none'">
+    <h1 class="title">树洞 · 匿名社区</h1>
+    <p class="sub">在这里说点不敢说的，全程匿名</p>
+  </header>
+
+  <section class="composer">
+    <div class="hint">🌿 树洞内容全部匿名发布与评论，请文明表达。</div>
+    <textarea id="content" maxlength="500" placeholder="把心事写下来…"></textarea>
+    <div class="row">
+      <label class="file-btn">📷 图片<input type="file" id="image" accept="image/*"></label>
+      <button class="submit" id="submitBtn">匿名发布</button>
+    </div>
+  </section>
+
+  <div class="wall" id="wall"></div>
+  <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
+  <div class="toast" id="toast"></div>
+</div>
+
+<div class="mask" id="loginMask"><div class="modal">
+  <span class="close" data-close="loginMask">×</span><h3>登录</h3><p class="h">登录后可使用点赞、评论</p>
+  <label>用户名</label><input type="text" id="l_user" placeholder="用户名" autocomplete="username">
+  <label>密码</label><input type="password" id="l_pwd" placeholder="密码" autocomplete="current-password">
+  <button class="mbtn" id="l_submit">登 录</button>
+  <p class="alt">还没有账号？<a id="toReg">立即注册</a></p>
+</div></div>
+<div class="mask" id="regMask"><div class="modal">
+  <span class="close" data-close="regMask">×</span><h3>注册</h3><p class="h">加入温州市滨海高级中学</p>
+  <label>用户名（3-20位）</label><input type="text" id="r_user" placeholder="用户名" autocomplete="username">
+  <label>昵称（可选）</label><input type="text" id="r_nick" placeholder="昵称" maxlength="50">
+  <label>密码（至少6位）</label><input type="password" id="r_pwd" placeholder="密码" autocomplete="new-password">
+  <button class="mbtn" id="r_submit">注 册</button>
+  <p class="alt">已有账号？<a id="toLogin">去登录</a></p>
+</div></div>
+
+<script>
+const API='api.php';let page=1,loading=false,noMore=false,TOKEN=localStorage.getItem('bb_token')||'',ME=null;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
+function escName(n){return (n||'匿名');}
+function fmtTime(s){const d=new Date(s.replace(' ','T')+'Z');if(isNaN(d))return s;const diff=(Date.now()-d.getTime())/1000;if(diff<60)return '刚刚';if(diff<3600)return Math.floor(diff/60)+'分钟前';if(diff<86400)return Math.floor(diff/3600)+'小时前';return s;}
+function safeImg(n){if(!n||!/^[a-f0-9]{32}\.(jpg|png|gif|webp)$/.test(n))return '';return '/uploads/'+n;}
+
+async function refreshUser(){if(!TOKEN){ME=null;renderAuth();return;}try{const r=await fetch(API+'?action=me&token='+encodeURIComponent(TOKEN));const d=await r.json();if(d.ok)ME=d;else{TOKEN='';localStorage.removeItem('bb_token');ME=null;}}catch(_){}renderAuth();}
+function renderAuth(){const a=document.getElementById('authArea');if(ME){const L=(ME.nickname||ME.username||'?')[0].toUpperCase();a.innerHTML='<div class="user-chip"><div class="av">'+L+'</div><span class="nm">'+escName(ME.nickname)+'</span><button class="btn-ghost" id="logoutBtn">退出</button></div>';document.getElementById('logoutBtn').onclick=logout;}else{a.innerHTML='<button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button>';document.getElementById('loginBtn').onclick=()=>openMask('loginMask');document.getElementById('regBtn').onclick=()=>openMask('regMask');}}
+function logout(){if(TOKEN)fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=logout&token='+encodeURIComponent(TOKEN)}).catch(()=>{});TOKEN='';ME=null;localStorage.removeItem('bb_token');renderAuth();toast('已退出');}
+function openMask(id){document.getElementById(id).classList.add('show');}function closeMask(id){document.getElementById(id).classList.remove('show');}
+document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>closeMask(x.dataset.close));
+document.getElementById('toReg').onclick=()=>{closeMask('loginMask');openMask('regMask');};
+document.getElementById('toLogin').onclick=()=>{closeMask('regMask');openMask('loginMask');};
+document.querySelectorAll('.mask').forEach(m=>m.onclick=e=>{if(e.target===m)closeMask(m.id);});
+document.getElementById('l_submit').onclick=async()=>{const u=document.getElementById('l_user').value.trim(),pw=document.getElementById('l_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const fd=new FormData();fd.append('action','login');fd.append('username',u);fd.append('password',pw);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('loginMask');renderAuth();toast('登录成功');document.getElementById('l_pwd').value='';}else toast(d.msg);};
+document.getElementById('r_submit').onclick=async()=>{const u=document.getElementById('r_user').value.trim(),nick=document.getElementById('r_nick').value.trim(),pw=document.getElementById('r_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const fd=new FormData();fd.append('action','register');fd.append('username',u);fd.append('password',pw);if(nick)fd.append('nickname',nick);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功');document.getElementById('r_user').value='';document.getElementById('r_pwd').value='';document.getElementById('r_nick').value='';}else toast(d.msg);};
+
+async function loadPosts(reset){if(loading||(noMore&&!reset))return;loading=true;if(reset){page=1;noMore=false;document.getElementById('wall').innerHTML='';}const wall=document.getElementById('wall');try{const r=await fetch(API+'?action=list&board=1&page='+page);const d=await r.json();if(!d.ok){toast(d.msg||'加载失败');return;}if(d.posts.length===0&&page===1){wall.innerHTML='<div class="empty">还没有树洞内容，来做第一个吧 🌿</div>';noMore=true;}d.posts.forEach(p=>wall.appendChild(renderPost(p)));if(page*d.per>=d.total)noMore=true;document.getElementById('moreBtn').style.display=noMore?'none':'block';page++;}catch(_){toast('网络错误');}finally{loading=false;}}
+function renderPost(p){const el=document.createElement('div');el.className='post';let html='<div class="top"><div class="avatar">匿</div><div><div class="name">匿名</div><div class="time"></div></div></div>';html+='<div class="content"></div>';const img=safeImg(p.image);if(img)html+='<img class="pic" src="'+img+'" alt="配图">';html+='<div class="acts"><button class="like"><span class="cnt">'+(p.likes||0)+'</span> ❤</button><button class="cmt-toggle">💬 '+(p.comment_count||0)+'</button></div>';html+='<div class="comments"><div class="cmt-list"></div><div class="cmt-form"><input type="text" placeholder="匿名留言…" maxlength="200"><button>发送</button></div></div>';el.innerHTML=html;el.querySelector('.time').textContent=fmtTime(p.created_at);el.querySelector('.content').textContent=p.content;
+  el.querySelector('.like').onclick=async(e)=>{const b=e.currentTarget;const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=like&post_id='+p.id});const d=await r.json();if(d.ok){b.querySelector('.cnt').textContent=d.likes;}else toast(d.msg);};
+  const box=el.querySelector('.comments');el.querySelector('.cmt-toggle').onclick=async()=>{box.classList.toggle('show');if(box.classList.contains('show')&&!box.dataset.loaded){await loadComments(p.id,box);box.dataset.loaded='1';}};
+  el.querySelector('.cmt-form button').onclick=async()=>{const inp=el.querySelector('.cmt-form input');const v=inp.value.trim();if(!v)return;const fd=new FormData();fd.append('action','comment_add');fd.append('post_id',p.id);fd.append('content',v);if(TOKEN)fd.append('token',TOKEN);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){inp.value='';box.dataset.loaded='';await loadComments(p.id,box);const c=el.querySelector('.cmt-toggle');c.textContent='💬 '+(parseInt((c.textContent.match(/\d+/)||[0])[0])+1);}else toast(d.msg);};
+  return el;}
+async function loadComments(id,box){const list=box.querySelector('.cmt-list');list.innerHTML='<div class="empty" style="padding:10px">加载中…</div>';try{const r=await fetch(API+'?action=comments&post_id='+id);const d=await r.json();list.innerHTML='';if(!d.ok||d.comments.length===0){list.innerHTML='<div class="empty" style="padding:10px">还没有留言</div>';return;}d.comments.forEach(c=>{const div=document.createElement('div');div.className='cmt';const b=document.createElement('b');b.textContent='匿名：';div.appendChild(b);div.appendChild(document.createTextNode(c.content));list.appendChild(div);});}catch(_){list.innerHTML='加载失败';}}
+
+const imgInput=document.getElementById('image');
+imgInput.onchange=()=>{if(imgInput.files[0]){};};
+document.getElementById('submitBtn').onclick=async()=>{const content=document.getElementById('content').value.trim();if(!content){toast('内容不能为空');return;}const btn=document.getElementById('submitBtn');btn.disabled=true;btn.textContent='发布中…';const fd=new FormData();fd.append('action','create');fd.append('board','1');fd.append('content',content);fd.append('anonymous','1');if(TOKEN)fd.append('token',TOKEN);if(imgInput.files[0])fd.append('image',imgInput.files[0]);try{const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast('发布成功，等待审核 ❤');document.getElementById('content').value='';imgInput.value='';loadPosts(true);}else toast(d.msg);}catch(_){toast('网络错误');}finally{btn.disabled=false;btn.textContent='匿名发布';}};
+document.getElementById('moreBtn').onclick=()=>loadPosts(false);
+refreshUser();loadPosts(true);
+</script>
+</body>
+</html>

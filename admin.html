@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>表白墙 · 后台管理</title>
+<style>
+  :root{--pink:#ff6b9d;--pink-d:#e8558a;--bg:#fff5f8;--card:#fff;
+    --text:#3a2c33;--muted:#9b8a92;--line:#ffe1ec;--green:#3ec98a;--red:#ff5a5a;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:linear-gradient(160deg,#fff0f6,#ffe3ef 60%,#fff);color:var(--text);min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 14px 60px}
+  header{display:flex;align-items:center;justify-content:space-between;padding:6px 0 14px}
+  header h1{font-size:22px;color:var(--pink-d)}
+  .btn{background:var(--pink);color:#fff;border:none;border-radius:10px;padding:9px 18px;
+    font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,157,.3)}
+  .btn.ghost{background:#fff;color:var(--pink-d);border:1px solid var(--line);box-shadow:none}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+
+  /* 登录 */
+  .login{max-width:340px;margin:14vh auto 0;background:var(--card);border-radius:18px;
+    padding:28px 24px;box-shadow:0 8px 28px rgba(255,107,157,.15)}
+  .login h2{text-align:center;color:var(--pink-d);margin-bottom:18px}
+  .login input{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 13px;
+    font-size:15px;margin-bottom:12px;outline:none;background:#fffafc}
+  .login input:focus{border-color:var(--pink)}
+  .login .btn{width:100%}
+
+  /* 统计 */
+  .stats{display:flex;gap:10px;margin-bottom:14px}
+  .stat{flex:1;background:var(--card);border-radius:14px;padding:14px;text-align:center;
+    box-shadow:0 4px 14px rgba(255,107,157,.1)}
+  .stat b{display:block;font-size:24px;color:var(--pink-d)}
+  .stat span{font-size:12px;color:var(--muted)}
+
+  /* 筛选 */
+  .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .filters button{background:#fff;border:1px solid var(--line);color:var(--muted);
+    border-radius:20px;padding:7px 16px;font-size:13px;cursor:pointer}
+  .filters button.on{background:var(--pink);color:#fff;border-color:var(--pink)}
+
+  .post{background:var(--card);border-radius:14px;padding:14px 16px;margin:12px 0;
+    box-shadow:0 4px 14px rgba(255,107,157,.1)}
+  .post .top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--pink);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:15px}
+  .post .name{font-weight:600;font-size:15px}
+  .post .time{color:var(--muted);font-size:12px}
+  .post .content{font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word;margin:6px 0}
+  .post .pic{max-width:160px;border-radius:10px;margin:6px 0;display:block}
+  .badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:10px;margin-left:8px}
+  .badge.s0{background:#fff3cd;color:#a07a00}
+  .badge.s1{background:#d6f5e6;color:#1f8a57}
+  .badge.s2{background:#ffe0e0;color:#c23b3b}
+  .post .acts{display:flex;gap:10px;margin-top:10px}
+  .post .acts button{flex:1;border:none;border-radius:9px;padding:9px;font-size:13px;cursor:pointer;color:#fff}
+  .act-approve{background:var(--green)}
+  .act-reject{background:#ffb04d}
+  .act-delete{background:var(--red)}
+  .empty{text-align:center;color:var(--muted);padding:30px 0}
+  .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(58,44,51,.92);
+    color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;
+    transition:.25s;z-index:99}
+  .toast.show{opacity:1}
+  .hidden{display:none!important}
+  .panel{background:var(--card);border-radius:14px;padding:16px;margin:14px 0;box-shadow:0 4px 14px rgba(255,107,157,.1)}
+  .panel h2{font-size:17px;color:var(--pink-d);margin-bottom:12px}
+  .inv-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .inv-form label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:4px}
+  .inv-form input{width:120px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:14px;background:#fffafc;outline:none}
+  .inv-form input:focus{border-color:var(--pink)}
+  .inv-list{margin-top:14px}
+  .inv-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:13px}
+  .inv-code{font-family:monospace;font-weight:700;color:var(--pink-d);font-size:15px}
+  .inv-tag{font-size:11px;padding:2px 8px;border-radius:8px}
+  .inv-tag.ok{background:#d6f5e6;color:#1f8a57}
+  .inv-tag.bad{background:#ffe0e0;color:#c23b3b}
+
+  /* 用户管理 */
+  .user-row{background:var(--card);border-radius:14px;padding:12px 14px;margin:10px 0;box-shadow:0 4px 14px rgba(255,107,157,.1)}
+  .user-row .u-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .user-row .u-name{font-weight:600;font-size:15px}
+  .user-row .u-sub{color:var(--muted);font-size:12px}
+  .user-row .u-stats{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .user-row .u-stat{font-size:11px;background:#fff0f6;color:var(--pink-d);padding:2px 8px;border-radius:8px}
+  .user-row .u-acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .user-row .u-acts button{flex:1;min-width:90px;border:none;border-radius:9px;padding:8px;font-size:13px;cursor:pointer;color:#fff}
+  .u-acts .ban{background:#ffb04d}
+  .u-acts .unban{background:var(--green)}
+  .u-acts .del{background:var(--red)}
+  .u-acts .view{background:var(--pink)}
+  .badge.b0{background:#ffe0e0;color:#c23b3b}
+  .badge.b1{background:#d6f5e6;color:#1f8a57}
+  .content-list{border-top:1px dashed var(--line);margin-top:8px;padding-top:6px}
+  .content-row{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #fff3f8;font-size:13px}
+  .content-row .ct{flex:1;white-space:pre-wrap;word-break:break-word;color:var(--text)}
+  .content-row .ctype{font-size:11px;padding:1px 7px;border-radius:7px;background:#eee;color:#666;white-space:nowrap}
+  .content-row .cstatus{font-size:11px;padding:1px 7px;border-radius:7px;background:#fff3cd;color:#a07a00;white-space:nowrap}
+  .content-row .cdel{border:none;background:var(--red);color:#fff;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .content-row .ctime{font-size:11px;color:var(--muted);white-space:nowrap;align-self:center}
+  .content-row .cedit{border:none;background:var(--pink-d);color:#fff;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .content-row .medit{border:none;background:var(--pink-d);color:#fff;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;white-space:nowrap}
+  /* 用户/资料 弹窗 */
+  .up-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .btn.create{background:var(--pink);color:#fff;border:none;border-radius:9px;padding:8px 14px;cursor:pointer;font-size:13px}
+  .mini-mask{position:fixed;inset:0;background:rgba(58,44,51,.5);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+  .mini-mask.show{display:flex}
+  .mini-mask .box{background:#fff;border-radius:14px;padding:20px 18px;width:100%;max-width:340px;box-shadow:0 12px 40px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
+  .mini-mask h3{margin-bottom:14px;font-size:17px;color:var(--pink-d)}
+  .mini-mask label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  .mini-mask input,.mini-mask select,.mini-mask textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit}
+  .mini-mask .m-acts{display:flex;gap:10px;margin-top:16px}
+  .mini-mask .m-acts button{flex:1;padding:10px;border-radius:10px;border:none;cursor:pointer;font-size:14px}
+  .mini-mask .m-ok{background:var(--pink);color:#fff}
+  .mini-mask .m-cancel{background:#f3eef0;color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>💌 表白墙后台</h1>
+    <button class="btn ghost hidden" id="logoutBtn">退出登录</button>
+  </header>
+
+  <!-- 登录 -->
+  <div class="login" id="loginBox">
+    <h2>管理员登录</h2>
+    <input type="text" id="username" placeholder="用户名" autocomplete="username">
+    <input type="password" id="password" placeholder="密码" autocomplete="current-password">
+    <button class="btn" id="loginBtn">登录</button>
+    <p style="text-align:center;color:var(--muted);font-size:12px;margin-top:12px">默认 admin / admin123，请尽快修改</p>
+  </div>
+
+  <!-- 仪表盘 -->
+  <div id="dash" class="hidden">
+    <div class="stats" id="stats"></div>
+    <div class="filters" id="filters">
+      <button data-s="" class="on">全部</button>
+      <button data-s="0">待审核</button>
+      <button data-s="1">已通过</button>
+      <button data-s="2">已拒绝</button>
+    </div>
+
+    <div class="panel" id="invitePanel">
+      <h2>🎫 邀请码管理</h2>
+      <div class="inv-form">
+        <label>生成数量<input type="number" id="invCount" value="1" min="1" max="50"></label>
+        <label>每个可用次数<input type="number" id="invMax" value="1" min="1" max="100"></label>
+        <label>有效期(天,0=永久)<input type="number" id="invDays" value="0" min="0" max="365"></label>
+        <button class="btn" id="genInviteBtn">生成邀请码</button>
+      </div>
+      <div class="inv-list" id="inviteList"></div>
+    </div>
+
+    <div class="panel" id="userPanel">
+      <div class="up-head">
+        <h2>👥 用户管理</h2>
+        <button class="btn create" id="createUserBtn">＋ 创建用户</button>
+      </div>
+      <div class="filters" id="userFilters">
+        <button data-s="-1" class="on">全部</button>
+        <button data-s="1">正常</button>
+        <button data-s="0">已封禁</button>
+        <button class="btn ghost" id="refreshUsers" style="margin-left:auto">刷新</button>
+      </div>
+      <div id="userList"></div>
+    </div>
+
+    <div id="list"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- 创建用户弹窗 -->
+<div class="mini-mask" id="createUserMask">
+  <div class="box">
+    <h3>创建用户</h3>
+    <label>用户名（3-20位字母/数字/下划线）</label>
+    <input type="text" id="cu_user" placeholder="用户名" maxlength="20" autocomplete="off">
+    <label>昵称（可选，默认同用户名）</label>
+    <input type="text" id="cu_nick" placeholder="昵称" maxlength="50" autocomplete="off">
+    <label>密码（至少6位）</label>
+    <input type="password" id="cu_pwd" placeholder="密码" maxlength="50" autocomplete="new-password">
+    <div class="m-acts">
+      <button class="m-cancel" data-close-mini>取消</button>
+      <button class="m-ok" id="cu_submit">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑用户弹窗 -->
+<div class="mini-mask" id="editUserMask">
+  <div class="box">
+    <h3>编辑用户</h3>
+    <label>昵称</label>
+    <input type="text" id="eu_nick" placeholder="昵称" maxlength="50" autocomplete="off">
+    <label>新密码（留空则不修改，至少6位）</label>
+    <input type="password" id="eu_pwd" placeholder="留空不改" maxlength="50" autocomplete="new-password">
+    <label>账号状态</label>
+    <select id="eu_status">
+      <option value="1">正常</option>
+      <option value="0">封禁</option>
+    </select>
+    <label>封禁理由（仅封禁时填写）</label>
+    <input type="text" id="eu_reason" placeholder="封禁理由" maxlength="200" autocomplete="off">
+    <div class="m-acts">
+      <button class="m-cancel" data-close-mini>取消</button>
+      <button class="m-ok" id="eu_submit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑资料弹窗 -->
+<div class="mini-mask" id="editMatMask">
+  <div class="box">
+    <h3>编辑资料</h3>
+    <label>标题</label>
+    <input type="text" id="em_title" placeholder="标题" maxlength="150" autocomplete="off">
+    <label>描述</label>
+    <textarea id="em_desc" rows="3" placeholder="描述"></textarea>
+    <label>状态</label>
+    <select id="em_status">
+      <option value="1">上架 / 正常</option>
+      <option value="0">下架 / 隐藏</option>
+    </select>
+    <div class="m-acts">
+      <button class="m-cancel" data-close-mini>取消</button>
+      <button class="m-ok" id="em_submit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑文本内容弹窗（帖子/问答/论坛/评论） -->
+<div class="mini-mask" id="editContentMask">
+  <div class="box">
+    <h3 id="ec_heading">编辑文本</h3>
+    <div id="ec_title_wrap">
+      <label>标题</label>
+      <input type="text" id="ec_title" placeholder="标题" maxlength="150" autocomplete="off">
+    </div>
+    <label>正文</label>
+    <textarea id="ec_content" rows="6" placeholder="正文内容"></textarea>
+    <div class="m-acts">
+      <button class="m-cancel" data-close-mini>取消</button>
+      <button class="m-ok" id="ec_submit">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'api.php';
+let token = localStorage.getItem('bb_token') || '';
+let curStatus = '';
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1800);}
+function esc(n){return n||'匿名';}
+function fmt(s){if(!s)return'';
+  const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if(!m)return s;
+  return (+m[2])+'月'+(+m[3])+'日 '+m[4]+':'+m[5];}
+function safeImg(n){return (n&&/^[a-f0-9]{32}\.(jpg|png|gif|webp)$/.test(n))?'/uploads/'+n:'';}
+
+function authHeaders(extra={}){return Object.assign({'Authorization':'Bearer '+token},extra);}
+
+function showDash(show){
+  document.getElementById('dash').classList.toggle('hidden',!show);
+  document.getElementById('loginBox').classList.toggle('hidden',show);
+  document.getElementById('logoutBtn').classList.toggle('hidden',!show);
+}
+
+async function loadStats(){
+  try{
+    const r=await fetch(API+'?action=admin_stats',{headers:authHeaders()});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) doLogout(); return; }
+    const s=d.stats;
+    document.getElementById('stats').innerHTML=
+      stat(s.pending,'待审核')+stat(s.approved,'已通过')+stat(s.rejected,'已拒绝')+stat(s.comments,'评论');
+  }catch(_){}
+}
+function stat(n,label){return '<div class="stat"><b>'+n+'</b><span>'+label+'</span></div>';}
+
+async function loadList(){
+  const list=document.getElementById('list');
+  list.innerHTML='<div class="empty">加载中…</div>';
+  try{
+    const url=API+'?action=admin_list'+(curStatus!==''?'&status='+curStatus:'');
+    const r=await fetch(url,{headers:authHeaders()});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) doLogout(); return; }
+    if(d.posts.length===0){ list.innerHTML='<div class="empty">暂无帖子</div>'; return; }
+    list.innerHTML='';
+    d.posts.forEach(p=>list.appendChild(render(p)));
+  }catch(_){     list.innerHTML='<div class="empty">加载失败</div>'; }
+}
+
+async function loadInvites(){
+  const box=document.getElementById('inviteList');
+  try{
+    const r=await fetch(API+'?action=admin_invite_list',{headers:authHeaders()});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) doLogout(); return; }
+    if(d.invites.length===0){ box.innerHTML='<div class="empty">暂无邀请码，先生成一个吧</div>'; return; }
+    box.innerHTML='';
+    d.invites.forEach(it=>{
+      const expired = it.expires_at && new Date(it.expires_at.replace(' ','T')+'Z') < new Date();
+      const disabled = it.status===0 || expired || it.used_count>=it.max_uses;
+      const tag = disabled ? '<span class="inv-tag bad">已失效</span>' : '<span class="inv-tag ok">可用</span>';
+      const div=document.createElement('div'); div.className='inv-row';
+      div.innerHTML='<span class="inv-code">'+it.code+'</span>'+
+        '<span>已用 '+it.used_count+'/'+it.max_uses+'</span>'+
+        (it.expires_at?'<span>至 '+it.expires_at+'</span>':'<span>永久</span>')+tag;
+      box.appendChild(div);
+    });
+  }catch(_){}
+}
+
+function render(p){
+  const el=document.createElement('div');el.className='post';
+  const badges=['待审核','已通过','已拒绝'];
+  let html='<div class="top"><div class="avatar">'+(esc(p.nickname)[0]||'匿').toUpperCase()+'</div>'+
+    '<div><div class="name">'+''+'<span class="badge s'+p.status+'">'+badges[p.status]+'</span></div>'+
+    '<div class="time">'+fmt(p.created_at)+(p.ip? ' · IP '+esc(p.ip):'')+'</div></div></div>';
+  html+='<div class="content"></div>';
+  const img=safeImg(p.image); if(img) html+='<img class="pic" src="'+img+'">';
+  html+='<div class="acts">'+
+    (p.status!==1?'<button class="act-approve" data-id="'+p.id+'">✓ 通过</button>':'')+
+    (p.status!==2?'<button class="act-reject" data-id="'+p.id+'">✕ 拒绝</button>':'')+
+    '<button class="act-edit" data-id="'+p.id+'">✏ 编辑文本</button>'+
+    '<button class="act-delete" data-id="'+p.id+'">🗑 删除</button></div>';
+  el.innerHTML=html;
+  el.querySelector('.name').insertBefore(document.createTextNode(esc(p.nickname)),el.querySelector('.name').firstChild);
+  el.querySelector('.content').textContent=(p.title? (p.title+'｜') : '')+(p.content||'');
+  el.querySelector('.act-approve')?.addEventListener('click',()=>act('admin_approve',p.id));
+  el.querySelector('.act-reject')?.addEventListener('click',()=>act('admin_reject',p.id));
+  el.querySelector('.act-edit')?.addEventListener('click',()=>openEditPostCard(p));
+  el.querySelector('.act-delete')?.addEventListener('click',()=>{
+    if(confirm('确定删除这条帖子？')) act('admin_delete',p.id);
+  });
+  return el;
+}
+
+// 审核面板：编辑帖子/匿名帖文本
+function openEditPostCard(p){
+  editEid=p.id; editEtype='post'; editUid3=''; // ''=从审核面板入口，保存后刷新列表
+  document.getElementById('ec_heading').textContent='编辑文本（表白/树洞/帖子）';
+  document.getElementById('ec_title_wrap').style.display='';
+  document.getElementById('ec_title').value=p.title||'';
+  document.getElementById('ec_content').value=p.content||'';
+  openMini('editContentMask');
+}
+
+async function act(action,id){
+  try{
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),
+      body:'action='+action+'&post_id='+id});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast('操作成功');
+    loadStats(); loadList();
+  }catch(_){ toast('网络错误'); }
+}
+
+// 登录
+document.getElementById('loginBtn').addEventListener('click',async ()=>{
+  const u=document.getElementById('username').value.trim();
+  const pw=document.getElementById('password').value;
+  if(!u||!pw){ toast('请输入账号密码'); return; }
+  const btn=document.getElementById('loginBtn'); btn.disabled=true; btn.textContent='登录中…';
+  try{
+    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'action=admin_login&username='+encodeURIComponent(u)+'&password='+encodeURIComponent(pw)});
+    const d=await r.json();
+    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); }
+    else toast(d.msg);
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled=false; btn.textContent='登录'; }
+});
+
+document.getElementById('logoutBtn').addEventListener('click',doLogout);
+function doLogout(){ token=''; localStorage.removeItem('bb_token'); showDash(false); }
+
+document.getElementById('genInviteBtn').addEventListener('click',async ()=>{
+  const count=document.getElementById('invCount').value;
+  const max=document.getElementById('invMax').value;
+  const days=document.getElementById('invDays').value;
+  const btn=document.getElementById('genInviteBtn'); btn.disabled=true; btn.textContent='生成中…';
+  try{
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),
+      body:'action=admin_invite_create&count='+encodeURIComponent(count)+'&max_uses='+encodeURIComponent(max)+'&expires_days='+encodeURIComponent(days)});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); }
+    else { toast('已生成 '+d.codes.length+' 个：'+d.codes.join(', ')); loadInvites(); }
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled=false; btn.textContent='生成邀请码'; }
+});
+
+document.getElementById('filters').addEventListener('click',(e)=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...document.querySelectorAll('#filters button')].forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  curStatus=b.dataset.s; loadList();
+});
+
+// 用户管理 =====================================================================
+let curUserStatus = '-1';
+
+async function loadUsers(){
+  const box = document.getElementById('userList');
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try{
+    const r = await fetch(API + '?action=admin_users' + (curUserStatus !== '-1' ? '&status=' + curUserStatus : ''), {headers: authHeaders()});
+    const d = await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); box.innerHTML='<div class="empty">'+d.msg+'</div>'; return; }
+    if(d.users.length===0){ box.innerHTML='<div class="empty">暂无用户</div>'; return; }
+    box.innerHTML='';
+    d.users.forEach(u=>box.appendChild(renderUser(u)));
+  }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
+}
+
+const UTYPE = {post:'表白/帖子', question:'问答', topic:'论坛', material:'资料', comment:'评论'};
+const USTAT = {0:'待审核', 1:'已通过', 2:'已拒绝'};
+
+function renderUser(u){
+  const el = document.createElement('div'); el.className='user-row';
+  const stBadge = u.status==0 ? '<span class="badge b0">已封禁</span>' : '<span class="badge b1">正常</span>';
+  const reason = (u.status==0 && u.ban_reason) ? '<div class="u-sub">封禁理由：'+esc(u.ban_reason)+'</div>' : '';
+  let html = '<div class="u-top"><div class="u-name">'+esc(u.nickname)+' <span class="u-sub">@'+esc(u.username)+'</span></div>'+stBadge+
+    '<span class="u-sub" style="margin-left:auto">'+fmt(u.created_at)+(u.last_ip? ' · IP '+esc(u.last_ip):'')+'</span></div>'+reason;
+  html += '<div class="u-stats">'+
+    '<span class="u-stat">帖子 '+u.cnt_posts+'</span>'+
+    '<span class="u-stat">问答 '+u.cnt_questions+'</span>'+
+    '<span class="u-stat">论坛 '+u.cnt_topics+'</span>'+
+    '<span class="u-stat">资料 '+u.cnt_materials+'</span>'+
+    '<span class="u-stat">评论 '+u.cnt_comments+'</span></div>';
+  html += '<div class="u-acts">'+
+    '<button class="view" data-uid="'+u.id+'">查看上传</button>'+
+    '<button class="edit" data-uid="'+u.id+'">编辑</button>'+
+    (u.status==0 ? '<button class="unban" data-uid="'+u.id+'">解封</button>' : '<button class="ban" data-uid="'+u.id+'">封禁</button>')+
+    '<button class="del" data-uid="'+u.id+'">删除用户</button></div>';
+  html += '<div class="content-list hidden" id="ucl_'+u.id+'"></div>';
+  el.innerHTML = html;
+  return el;
+}
+
+function bindUserEvents(){
+  const list = document.getElementById('userList');
+  if(list.dataset.bound) return; list.dataset.bound = '1';
+  list.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    const uid = btn.dataset.uid; if(!uid) return;
+    if(btn.classList.contains('view')){
+      const box = document.getElementById('ucl_'+uid);
+      if(box.classList.contains('hidden')){ await loadUserContents(uid, box); box.classList.remove('hidden'); }
+      else box.classList.add('hidden');
+    } else if(btn.classList.contains('ban')){
+      const reason = prompt('请输入封禁理由（可留空）：');
+      if(reason === null) return;
+      if(confirm('确定封禁该用户？封禁后将强制其下线且无法登录。')){
+        await userAct('admin_user_ban', {user_id:uid, ban:1, reason});
+      }
+    } else if(btn.classList.contains('unban')){
+      if(confirm('确定解封该用户？')) await userAct('admin_user_ban', {user_id:uid, ban:0});
+    } else if(btn.classList.contains('del')){
+      if(confirm('确定删除该用户？其帖子/问答/论坛/资料/评论将一并删除，且不可恢复！')){
+        await userAct('admin_user_delete', {user_id:uid});
+      }
+    } else if(btn.classList.contains('edit')){
+      openEditUser(uid);
+    } else if(btn.classList.contains('medit')){
+      openEditMat(btn.dataset.mid, uid);
+    } else if(btn.classList.contains('cedit')){
+      openEditContent(btn.dataset.eid, btn.dataset.etype, uid);
+    } else if(btn.classList.contains('cdel')){
+      const cid = btn.dataset.cid, ctype = btn.dataset.ctype, uid2 = btn.dataset.uid2;
+      const map = {post:'admin_delete', question:'admin_qa_delete', topic:'admin_forum_delete', material:'admin_material_delete', comment:'admin_comment_delete'};
+      const param = (ctype==='post') ? 'post_id' : 'id';
+      if(confirm('确定删除该条内容？')){
+        const r = await fetch(API, {method:'POST', headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}), body:'action='+map[ctype]+'&'+param+'='+cid});
+        const d = await r.json();
+        if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+        toast('已删除'); const box = document.getElementById('ucl_'+uid2);
+        await loadUserContents(uid2, box);
+      }
+    }
+  });
+}
+
+async function loadUserContents(uid, box){
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try{
+    const r = await fetch(API, {method:'POST', headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}), body:'action=admin_user_contents&user_id='+uid});
+    const d = await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); box.innerHTML='<div class="empty">'+d.msg+'</div>'; return; }
+    if(d.contents.length===0){ box.innerHTML='<div class="empty">该用户暂未上传内容</div>'; return; }
+    box.innerHTML='';
+    d.contents.forEach(c=>{
+      const row = document.createElement('div'); row.className='content-row';
+      const stTxt = (c.status===null||c.status===undefined) ? '' : (USTAT[c.status]||'');
+      const raw = c.content||'';
+      const pre = c.title ? (c.title+'｜') : '';
+      const text = pre + (raw.length>100 ? raw.slice(0,100)+'…' : raw);
+      const isMat = c.type==='material';
+      const editable = (c.type==='post'||c.type==='question'||c.type==='topic'||c.type==='comment');
+      row.innerHTML = '<span class="ctype">'+(UTYPE[c.type]||c.type)+'</span>'+
+        '<span class="ct"></span>'+
+        (stTxt? '<span class="cstatus">'+stTxt+'</span>':'')+
+        '<span class="ctime">'+fmt(c.created_at)+(c.ip? ' · IP '+esc(c.ip):'')+'</span>'+
+        (isMat? '<button class="medit" data-mid="'+c.id+'" data-uid2="'+uid+'">编辑</button>':'')+
+        (editable? '<button class="cedit" data-eid="'+c.id+'" data-etype="'+c.type+'" data-uid2="'+uid+'">编辑文本</button>':'')+
+        '<button class="cdel" data-cid="'+c.id+'" data-ctype="'+c.type+'" data-uid2="'+uid+'">删除</button>';
+      row.querySelector('.ct').textContent = text;
+      row.setAttribute('data-desc', c.description||'');
+      row.setAttribute('data-title', c.title||'');
+      row.setAttribute('data-content', c.content||'');
+      box.appendChild(row);
+    });
+  }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
+}
+
+async function userAct(action, params){
+  const body = Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&');
+  const r = await fetch(API, {method:'POST', headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}), body:'action='+action+'&'+body});
+  const d = await r.json();
+  if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+  toast('操作成功'); loadStats(); loadUsers();
+}
+
+// 用户/资料 弹窗逻辑
+let editUid=null, editMid=null, editUid2=null;
+function openMini(id){ document.getElementById(id).classList.add('show'); }
+function closeMini(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.mini-mask').forEach(m=>{
+  m.addEventListener('click', e=>{ if(e.target===m || e.target.hasAttribute('data-close-mini')) closeMini(m.id); });
+});
+
+// 创建用户
+document.getElementById('createUserBtn').addEventListener('click', ()=>{
+  document.getElementById('cu_user').value='';
+  document.getElementById('cu_nick').value='';
+  document.getElementById('cu_pwd').value='';
+  openMini('createUserMask');
+});
+document.getElementById('cu_submit').addEventListener('click', async ()=>{
+  const username=document.getElementById('cu_user').value.trim();
+  const nickname=document.getElementById('cu_nick').value.trim();
+  const password=document.getElementById('cu_pwd').value;
+  if(!username||!password){ toast('用户名和密码必填'); return; }
+  const btn=document.getElementById('cu_submit'); btn.disabled=true; btn.textContent='创建中…';
+  try{
+    const body='action=admin_user_create&username='+encodeURIComponent(username)+'&nickname='+encodeURIComponent(nickname)+'&password='+encodeURIComponent(password);
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast('已创建用户：'+username); closeMini('createUserMask'); loadUsers();
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled=false; btn.textContent='创建'; }
+});
+
+// 编辑用户
+function openEditUser(uid){
+  editUid=uid;
+  const row=[...document.querySelectorAll('.user-row')].find(x=>x.querySelector('[data-uid="'+uid+'"]'));
+  const nick=(row? (row.querySelector('.u-name')?.textContent||'') : '').replace(/@[\s\S]*/,'').trim();
+  document.getElementById('eu_nick').value=nick;
+  document.getElementById('eu_pwd').value='';
+  document.getElementById('eu_reason').value='';
+  const badge=row? row.querySelector('.badge'):null;
+  document.getElementById('eu_status').value=(badge && badge.classList.contains('b0'))?'0':'1';
+  openMini('editUserMask');
+}
+document.getElementById('eu_submit').addEventListener('click', async ()=>{
+  const nickname=document.getElementById('eu_nick').value.trim();
+  const password=document.getElementById('eu_pwd').value;
+  const status=document.getElementById('eu_status').value;
+  const reason=document.getElementById('eu_reason').value.trim();
+  if(!nickname){ toast('昵称不能为空'); return; }
+  if(password && password.length<6){ toast('密码至少6位'); return; }
+  const btn=document.getElementById('eu_submit'); btn.disabled=true; btn.textContent='保存中…';
+  try{
+    const body='action=admin_user_edit&user_id='+editUid+'&nickname='+encodeURIComponent(nickname)+'&password='+encodeURIComponent(password)+'&status='+status+'&reason='+encodeURIComponent(reason);
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast('已保存'); closeMini('editUserMask'); loadUsers();
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled=false; btn.textContent='保存'; }
+});
+
+// 编辑资料
+function openEditMat(mid, uid){
+  editMid=mid; editUid2=uid;
+  const box=document.getElementById('ucl_'+uid);
+  const row=box? [...box.querySelectorAll('.content-row')].find(x=>x.querySelector('[data-mid="'+mid+'"]')) : null;
+  document.getElementById('em_title').value=row? (row.querySelector('.ct')?.textContent||'') : '';
+  document.getElementById('em_desc').value=row? (row.dataset.desc||'') : '';
+  const st=row? (row.querySelector('.cstatus')?.textContent||'') : '';
+  document.getElementById('em_status').value=(st==='已拒绝'||st==='待审核')?'0':'1';
+  openMini('editMatMask');
+}
+document.getElementById('em_submit').addEventListener('click', async ()=>{
+  const title=document.getElementById('em_title').value.trim();
+  const description=document.getElementById('em_desc').value.trim();
+  const status=document.getElementById('em_status').value;
+  if(!title){ toast('标题不能为空'); return; }
+  const btn=document.getElementById('em_submit'); btn.disabled=true; btn.textContent='保存中…';
+  try{
+    const body='action=admin_material_edit&id='+editMid+'&title='+encodeURIComponent(title)+'&description='+encodeURIComponent(description)+'&status='+status;
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast('资料已保存'); closeMini('editMatMask');
+    const box=document.getElementById('ucl_'+editUid2); if(box && !box.classList.contains('hidden')) await loadUserContents(editUid2, box);
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled=false; btn.textContent='保存'; }
+});
+
+// 编辑文本内容（帖子/问答/论坛/评论）
+let editEid='', editEtype='', editUid3='';
+function openEditContent(eid, etype, uid){
+  editEid=eid; editEtype=etype; editUid3=uid;
+  const box=document.getElementById('ucl_'+uid);
+  const row=box? [...box.querySelectorAll('.content-row')].find(x=>x.querySelector('[data-eid="'+eid+'"]')) : null;
+  const hasTitle = (etype!=='comment');
+  document.getElementById('ec_heading').textContent = '编辑'+(UTYPE[etype]||'文本');
+  document.getElementById('ec_title_wrap').style.display = hasTitle? '' : 'none';
+  document.getElementById('ec_title').value = row? (row.dataset.title||'') : '';
+  document.getElementById('ec_content').value = row? (row.dataset.content||'') : '';
+  openMini('editContentMask');
+}
+document.getElementById('ec_submit').addEventListener('click', async ()=>{
+  const hasTitle = (editEtype!=='comment');
+  const title = hasTitle? document.getElementById('ec_title').value.trim() : '';
+  const content = document.getElementById('ec_content').value.trim();
+  if(hasTitle && !title){ toast('标题不能为空'); return; }
+  if(!content){ toast('正文不能为空'); return; }
+  const btn=document.getElementById('ec_submit'); btn.disabled=true; btn.textContent='保存中…';
+  try{
+    const map={post:'admin_post_edit',question:'admin_question_edit',topic:'admin_forum_edit',comment:'admin_comment_edit'};
+    let body='action='+map[editEtype]+'&id='+editEid+'&content='+encodeURIComponent(content);
+    if(hasTitle) body+='&title='+encodeURIComponent(title);
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast('文本已保存'); closeMini('editContentMask');
+    if(editUid3){ const box=document.getElementById('ucl_'+editUid3); if(box && !box.classList.contains('hidden')) await loadUserContents(editUid3, box); }
+    else loadList();
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled=false; btn.textContent='保存'; }
+});
+
+document.getElementById('userFilters').addEventListener('click',(e)=>{
+  const b=e.target.closest('button'); if(!b || b.id==='refreshUsers') return;
+  [...document.querySelectorAll('#userFilters button[data-s]')].forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); curUserStatus=b.dataset.s; loadUsers();
+});
+document.getElementById('refreshUsers').addEventListener('click',()=>loadUsers());
+
+// 启动：若已登录则直接进入
+if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); }
+</script>
+</body>
+</html>

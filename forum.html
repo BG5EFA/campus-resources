@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>论坛 · 温州市滨海高级中学</title>
+<style>
+  :root{--blue:#2f7bff;--blue-d:#1346c7;--cyan:#35d0ff;--bg1:#eef5ff;--bg2:#dcebff;--card:#fff;
+    --text:#14233f;--muted:#6b7c9c;--line:#d4e3ff;--glow:rgba(47,123,255,.22)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--text);position:relative;overflow-x:hidden;min-height:100vh;padding:0 12px 70px;background:linear-gradient(165deg,#eef5ff,#dcebff 55%,#e9f1ff)}
+  .wrap{position:relative;z-index:1;max-width:720px;margin:0 auto}
+  .topbar{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 4px 2px}
+  .btn-ghost{background:rgba(255,255,255,.8);border:1px solid var(--line);color:var(--blue-d);border-radius:10px;padding:8px 16px;font-size:14px;cursor:pointer}
+  .user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:30px;padding:5px 6px 5px 12px}
+  .user-chip .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .user-chip .nm{font-size:14px;font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nav{display:flex;gap:6px;justify-content:center;margin:8px 0 6px;flex-wrap:wrap}
+  .nav a{font-size:13px;padding:6px 13px;border-radius:18px;text-decoration:none;color:var(--muted);border:1px solid var(--line);background:rgba(255,255,255,.7)}
+  .nav a.active{color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan));border-color:transparent;box-shadow:0 4px 12px var(--glow)}
+  header{text-align:center;padding:6px 0}
+  .badge{width:60px;height:60px;filter:drop-shadow(0 6px 16px var(--glow))}
+  .title{font-size:22px;font-weight:800;background:linear-gradient(90deg,var(--blue-d),var(--blue),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:13px;margin-top:3px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 12px}
+  .chip{padding:6px 14px;border-radius:18px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:13px;cursor:pointer}
+  .chip.active{color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan));border-color:transparent}
+  .filters .search{margin-left:auto;display:flex;gap:6px}
+  .filters .search input{border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;outline:none;background:#f7fbff;width:150px}
+  .filters .search button{background:var(--blue);color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:13px;cursor:pointer}
+  .grid{display:flex;flex-direction:column;gap:10px}
+  .topic{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 6px 18px rgba(47,123,255,.08);position:relative;overflow:hidden}
+  .topic::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--blue),var(--cyan))}
+  .topic .cat{display:inline-block;font-size:11px;color:var(--blue-d);background:#eaf2ff;border-radius:8px;padding:2px 8px;margin-bottom:4px}
+  .topic .tt{font-size:16px;font-weight:700;cursor:pointer}
+  .topic .md{font-size:13px;color:var(--muted);margin:6px 0;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .topic .meta{font-size:12px;color:var(--muted);display:flex;gap:12px}
+  .empty{text-align:center;color:var(--muted);padding:30px 0}
+  .more{display:block;width:100%;margin:14px 0;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px;color:var(--blue-d);font-size:14px;cursor:pointer}
+  .detail .back{font-size:13px;color:var(--blue-d);cursor:pointer;margin-bottom:8px;display:inline-block}
+  .detail .tt{font-size:20px;font-weight:800;margin-bottom:6px}
+  .detail .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .detail .body{font-size:15px;line-height:1.7;white-space:pre-wrap;word-break:break-word;background:#f7fbff;border-radius:12px;padding:12px}
+  .reply{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
+  .reply .who{font-size:13px;font-weight:600;color:var(--blue-d)}
+  .reply .ct{font-size:14px;line-height:1.5;margin:4px 0}
+  .reply .ac{font-size:11px;color:#fff;background:#34c77b;border-radius:6px;padding:1px 6px;margin-left:6px}
+  .postcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(47,123,255,.10);position:relative;overflow:hidden}
+  .postcard::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+  .postcard h3{font-size:16px;color:var(--blue-d);margin-bottom:10px}
+  .postcard input,.postcard textarea,.postcard select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px;outline:none;background:#f7fbff;font-family:inherit;margin-bottom:10px}
+  .postcard textarea{min-height:80px;resize:vertical}
+  .postcard textarea:focus,.postcard input:focus,.postcard select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,123,255,.12)}
+  .postcard .submit{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 16px var(--glow)}
+  .login-hint{font-size:13px;color:var(--muted);background:#f4f9ff;border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
+  .login-hint a{color:var(--blue);cursor:pointer;font-weight:600}
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(20,35,63,.94);color:#fff;padding:10px 18px;border-radius:22px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:200}
+  .toast.show{opacity:1}
+  .mask{position:fixed;inset:0;background:rgba(10,22,46,.45);backdrop-filter:blur(3px);z-index:150;display:none;align-items:center;justify-content:center;padding:18px}
+  .mask.show{display:flex}
+  .modal{background:#fff;border-radius:18px;padding:22px 20px;width:100%;max-width:340px;box-shadow:0 20px 50px rgba(20,35,63,.3);position:relative}
+  .modal h3{font-size:19px;color:var(--blue-d);text-align:center}
+  .modal label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  .modal input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;outline:none;background:#f7fbff}
+  .modal .mbtn{width:100%;margin-top:18px;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:11px;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
+  .modal .alt{text-align:center;font-size:13px;color:var(--muted);margin-top:14px}.modal .alt a{color:var(--blue);cursor:pointer;text-decoration:none;font-weight:600}
+  .modal .close{position:absolute;right:14px;top:12px;font-size:20px;color:var(--muted);cursor:pointer;line-height:1}
+  @media(max-width:560px){.filters .search input{width:110px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar" id="authArea"><button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button></div>
+  <nav class="nav">
+    <a href="index.html">表白墙</a><a href="treehole.html">树洞</a>
+    <a href="forum.html" class="active">论坛</a><a href="qa.html">问答</a><a href="study.html">学习专区</a><a href="me.html">我的</a>
+  </nav>
+  <header><img class="badge" src="/badge.png" alt="校徽" onerror="this.style.display='none'">
+    <h1 class="title">校园论坛</h1><p class="sub">校园生活 · 学习交流 · 失物招领，一起聊</p></header>
+
+  <div id="listView">
+    <div class="filters" id="filters"><span class="chip active" data-cat="0">全部</span><div class="search"><input id="searchInput" placeholder="搜索话题…"><button id="searchBtn">搜索</button></div></div>
+    <div class="grid" id="grid"></div>
+    <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
+    <div class="postcard" id="postCard" style="display:none">
+      <h3>📝 发布话题</h3>
+      <input id="f_title" maxlength="150" placeholder="标题">
+      <select id="f_cat"></select>
+      <textarea id="f_content" maxlength="2000" placeholder="说点什么…"></textarea>
+      <button class="submit" id="f_submit">发布</button>
+    </div>
+    <button class="btn-ghost" id="showPost" style="display:block;width:100%;margin:10px 0">＋ 发布话题</button>
+  </div>
+
+  <div id="detailView" style="display:none"></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<div class="mask" id="loginMask"><div class="modal">
+  <span class="close" data-close="loginMask">×</span><h3>登录</h3><label>用户名</label><input type="text" id="l_user" placeholder="用户名" autocomplete="username">
+  <label>密码</label><input type="password" id="l_pwd" placeholder="密码" autocomplete="current-password">
+  <button class="mbtn" id="l_submit">登 录</button><p class="alt">还没有账号？<a id="toReg">立即注册</a></p>
+</div></div>
+<div class="mask" id="regMask"><div class="modal">
+  <span class="close" data-close="regMask">×</span><h3>注册</h3><label>用户名（3-20位）</label><input type="text" id="r_user" placeholder="用户名" autocomplete="username">
+  <label>昵称（可选）</label><input type="text" id="r_nick" placeholder="昵称" maxlength="50">
+  <label>密码（至少6位）</label><input type="password" id="r_pwd" placeholder="密码" autocomplete="new-password">
+  <button class="mbtn" id="r_submit">注 册</button><p class="alt">已有账号？<a id="toLogin">去登录</a></p>
+</div></div>
+
+<script>
+const API='api.php';let TOKEN=localStorage.getItem('bb_token')||'',ME=null,curCat=0,curQ='',page=1,loading=false,noMore=false;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
+function esc(s){return s==null?'':String(s);}
+async function refreshUser(){if(!TOKEN){ME=null;renderAuth();return;}try{const r=await fetch(API+'?action=me&token='+encodeURIComponent(TOKEN));const d=await r.json();if(d.ok)ME=d;else{TOKEN='';localStorage.removeItem('bb_token');ME=null;}}catch(_){}renderAuth();}
+function renderAuth(){const a=document.getElementById('authArea');if(ME){const L=(ME.nickname||ME.username||'?')[0].toUpperCase();a.innerHTML='<div class="user-chip"><div class="av">'+L+'</div><span class="nm">'+esc(ME.nickname)+'</span><button class="btn-ghost" id="logoutBtn">退出</button></div>';document.getElementById('logoutBtn').onclick=logout;}else{a.innerHTML='<button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button>';document.getElementById('loginBtn').onclick=()=>openMask('loginMask');document.getElementById('regBtn').onclick=()=>openMask('regMask');}}
+function logout(){if(TOKEN)fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=logout&token='+encodeURIComponent(TOKEN)}).catch(()=>{});TOKEN='';ME=null;localStorage.removeItem('bb_token');renderAuth();toast('已退出');}
+function openMask(id){document.getElementById(id).classList.add('show');}function closeMask(id){document.getElementById(id).classList.remove('show');}
+document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>closeMask(x.dataset.close));
+document.getElementById('toReg').onclick=()=>{closeMask('loginMask');openMask('regMask');};
+document.getElementById('toLogin').onclick=()=>{closeMask('regMask');openMask('loginMask');};
+document.querySelectorAll('.mask').forEach(m=>m.onclick=e=>{if(e.target===m)closeMask(m.id);});
+document.getElementById('l_submit').onclick=async()=>{const u=document.getElementById('l_user').value.trim(),pw=document.getElementById('l_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const fd=new FormData();fd.append('action','login');fd.append('username',u);fd.append('password',pw);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('loginMask');renderAuth();toast('登录成功');document.getElementById('l_pwd').value='';}else toast(d.msg);};
+document.getElementById('r_submit').onclick=async()=>{const u=document.getElementById('r_user').value.trim(),nick=document.getElementById('r_nick').value.trim(),pw=document.getElementById('r_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const fd=new FormData();fd.append('action','register');fd.append('username',u);fd.append('password',pw);if(nick)fd.append('nickname',nick);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功');document.getElementById('r_user').value='';document.getElementById('r_pwd').value='';document.getElementById('r_nick').value='';}else toast(d.msg);};
+
+async function loadCats(){const r=await fetch(API+'?action=forum_categories');const d=await r.json();if(d.ok){const f=document.getElementById('filters');d.categories.forEach(c=>{const s=document.createElement('span');s.className='chip';s.dataset.cat=c.id;s.textContent=c.name;s.onclick=()=>{curCat=c.id;setActiveCat();resetList();};f.insertBefore(s,f.querySelector('.search'));});const sel=document.getElementById('f_cat');d.categories.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;sel.appendChild(o);});}}
+function setActiveCat(){document.querySelectorAll('#filters .chip').forEach(c=>c.classList.toggle('active',+c.dataset.cat===curCat));}
+async function loadTopics(reset){if(loading||(noMore&&!reset))return;loading=true;if(reset){page=1;noMore=false;document.getElementById('grid').innerHTML='';}const grid=document.getElementById('grid');try{const r=await fetch(API+'?action=forum_list&page='+page+'&category='+curCat+'&q='+encodeURIComponent(curQ));const d=await r.json();if(!d.ok){toast(d.msg||'加载失败');return;}if(d.topics.length===0&&page===1){grid.innerHTML='<div class="empty">还没有话题，来发第一个吧 💬</div>';noMore=true;}d.topics.forEach(t=>grid.appendChild(renderTopic(t)));if(page*d.per>=d.total)noMore=true;document.getElementById('moreBtn').style.display=noMore?'none':'block';page++;}catch(_){toast('网络错误');}finally{loading=false;}}
+function renderTopic(t){const el=document.createElement('div');el.className='topic';el.innerHTML='<span class="cat">'+(esc(t.category_name)||'其他')+'</span><div class="tt"></div><div class="md"></div><div class="meta"><span>'+esc(t.author)+'</span><span>💬 '+(t.reply_count||0)+'</span><span>❤ '+(t.likes||0)+'</span><span>'+(t.views||0)+' 阅</span></div>';el.querySelector('.tt').textContent=t.title;if(t.content)el.querySelector('.md').textContent=t.content;el.querySelector('.tt').onclick=()=>showDetail(t.id);return el;}
+function showDetail(id){document.getElementById('listView').style.display='none';const dv=document.getElementById('detailView');dv.style.display='block';dv.innerHTML='<span class="back">← 返回列表</span><div class="detail"></div>';dv.querySelector('.back').onclick=()=>{dv.style.display='none';document.getElementById('listView').style.display='block';};loadDetail(id,dv.querySelector('.detail'));}
+async function loadDetail(id,box){const r=await fetch(API+'?action=forum_detail&id='+id);const d=await r.json();if(!d.ok){box.innerHTML='<div class="empty">帖子不存在</div>';return;}const t=d.topic;let h='<div class="tt"></div><div class="meta">'+(esc(t.category_name)||'')+' · '+esc(t.author)+' · ❤ '+(t.likes||0)+' · '+(t.views||0)+' 阅</div><div class="body"></div><div style="margin:10px 0"><button class="like" style="background:none;border:none;color:#6b7c9c;cursor:pointer;font-size:14px">❤ 点赞</button></div><h3 style="font-size:15px;color:#1346c7;margin:8px 0">回复（'+(d.replies.length)+'）</h3><div class="replies"></div>';box.innerHTML=h;box.querySelector('.tt').textContent=t.title;box.querySelector('.body').textContent=t.content;const likeBtn=box.querySelector('.like');likeBtn.onclick=async()=>{const rr=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=forum_like&id='+id});const dd=await rr.json();if(dd.ok)toast('点赞成功');else toast(dd.msg);};const rep=box.querySelector('.replies');d.replies.forEach(rp=>{const d2=document.createElement('div');d2.className='reply';d2.innerHTML='<div class="who"></div><div class="ct"></div>';d2.querySelector('.who').textContent=esc(rp.replier)||'匿名';d2.querySelector('.ct').textContent=rp.content;rep.appendChild(d2);});
+  // reply form
+  const form=document.createElement('div');form.style.marginTop='10px';form.innerHTML='<textarea id="rtext" maxlength="800" placeholder="写下你的回复…" style="width:100%;border:1px solid #d4e3ff;border-radius:10px;padding:9px;font-size:14px;font-family:inherit;min-height:60px"></textarea><button id="rbtn" style="margin-top:6px;background:linear-gradient(135deg,#2f7bff,#35d0ff);color:#fff;border:none;border-radius:10px;padding:9px 20px;font-size:14px;cursor:pointer">回复</button>';box.appendChild(form);form.querySelector('#rbtn').onclick=async()=>{if(!ME){toast('请先登录');openMask('loginMask');return;}const v=form.querySelector('#rtext').value.trim();if(!v){toast('回复不能为空');return;}const fd=new FormData();fd.append('action','forum_reply');fd.append('topic_id',id);fd.append('content',v);if(TOKEN)fd.append('token',TOKEN);const rr=await fetch(API,{method:'POST',body:fd});const dd=await rr.json();if(dd.ok){toast('回复成功');loadDetail(id,box);}else toast(dd.msg);};}
+document.getElementById('searchBtn').onclick=()=>{curQ=document.getElementById('searchInput').value.trim();resetList();};
+document.getElementById('searchInput').onkeydown=e=>{if(e.key==='Enter'){curQ=e.target.value.trim();resetList();}};
+document.getElementById('moreBtn').onclick=()=>loadTopics(false);
+document.getElementById('showPost').onclick=()=>{if(!ME){toast('请先登录');openMask('loginMask');return;}document.getElementById('postCard').style.display='block';document.getElementById('showPost').style.display='none';};
+document.getElementById('f_submit').onclick=async()=>{const title=document.getElementById('f_title').value.trim(),content=document.getElementById('f_content').value.trim(),cat=document.getElementById('f_cat').value;if(!title){toast('请填写标题');return;}const fd=new FormData();fd.append('action','forum_post');fd.append('title',title);fd.append('content',content);fd.append('category_id',cat);if(TOKEN)fd.append('token',TOKEN);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast('发布成功');document.getElementById('f_title').value='';document.getElementById('f_content').value='';document.getElementById('postCard').style.display='none';document.getElementById('showPost').style.display='block';resetList();}else toast(d.msg);};
+function resetList(){loadTopics(true);}
+loadCats();refreshUser();loadTopics(true);
+</script>
+</body>
+</html>

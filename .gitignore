@@ -1,0 +1,14 @@
+# 敏感配置（含真实密码，绝不提交）
+config.php
+*.env
+.env*
+
+# 上传的用户文件
+uploads/
+badge_src.jpg
+
+# 运行时 / 临时
+*.log
+verify_*.sh
+.DS_Store
+Thumbs.db

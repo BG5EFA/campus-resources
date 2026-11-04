@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>温州市滨海高级中学表白墙</title>
+<title>温州市滨海高级中学校园墙</title>
 <style>
   :root{
     --blue:#2f7bff; --blue-d:#1346c7; --cyan:#35d0ff;
@@ -179,7 +179,7 @@
   </div>
 
   <nav class="nav">
-    <a href="index.html" class="active">表白墙</a>
+    <a href="index.html" class="active">校园墙</a>
     <a href="study.html">学习专区</a>
   </nav>
 
@@ -187,7 +187,7 @@
     <!-- 校徽（原校徽已抠图，透明背景） -->
     <img class="badge" src="/badge.png" alt="温州市滨海高级中学校徽" onerror="this.style.display='none'">
 
-    <h1 class="title">温州市滨海高级中学表白墙</h1>
+    <h1 class="title">温州市滨海高级中学校园墙</h1>
     <p class="sub">把心动写进青春 · 匿名也可，真诚最好</p>
 
     <!-- 小瓜吉祥物 -->
@@ -224,7 +224,7 @@
   <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
 
   <div class="foot">
-    温州市滨海高级中学 · 表白墙
+    温州市滨海高级中学 · 校园墙
   </div>
 
   <section class="about">
@@ -271,7 +271,7 @@
   <div class="modal">
     <span class="close" data-close="regMask">×</span>
     <h3>注册</h3>
-    <p class="h">加入温州市滨海高级中学表白墙</p>
+    <p class="h">加入温州市滨海高级中学校园墙</p>
     <label>用户名（3-20位，中英文/数字/下划线）</label>
     <input type="text" id="r_user" placeholder="用户名" autocomplete="username">
     <label>昵称（留空默认等于用户名）</label>
@@ -448,8 +448,7 @@ function renderPost(p){
     if(document.getElementById('anon').checked) fd.append('anonymous','1');
     const r = await fetch(API, {method:'POST', body:fd});
     const d = await r.json();
-    if(d.ok){ inp.value=''; box.dataset.loaded=''; await loadComments(p.id, box);
-      const c = el.querySelector('.cmt-toggle span'); c.textContent = parseInt(c.textContent||'0')+1; }
+    if(d.ok){ inp.value=''; toast(d.msg); }   // 评论进入审核，不即时上屏/不计数的
     else toast(d.msg);
   });
   return el;

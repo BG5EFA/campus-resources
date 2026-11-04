@@ -1,6 +1,6 @@
 <?php
 /**
- * 校园表白墙 + 学习专区 + 树洞 + 问答 + 论坛 + 个人中心
+ * 校园墙 + 学习专区 + 树洞 + 问答 + 论坛 + 个人中心
  * 单文件路由，action 驱动。部署：/www/wwwroot/biaobai/api.php
  */
 
@@ -119,7 +119,7 @@ function handle_material_upload($file)
     if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) return false;
     if ($file['size'] > 20 * 1024 * 1024) return false;
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $allow = ['doc', 'docx', 'pdf', 'ppt', 'pptx', 'xls', 'xlsx', 'zip', 'rar', 'txt', 'jpg', 'png', 'mp4'];
+    $allow = ['doc', 'docx', 'pdf', 'ppt', 'pptx', 'xls', 'xlsx', 'zip', 'rar', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4'];
     if (!in_array($ext, $allow, true)) return false;
     $dir = UPLOAD_DIR . 'materials/';
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
@@ -134,7 +134,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($action) {
 
-    // ===== 帖子：列表（board: 0表白墙 1树洞 2论坛）=====
+    // ===== 帖子：列表（board: 0校园墙 1树洞 2论坛）=====
     case 'list':
         $page = max(1, intval($_GET['page'] ?? 1));
         $per = 10;
@@ -203,15 +203,15 @@ switch ($action) {
         json_out(['ok' => true, 'likes' => (int) $likes->fetchColumn()]);
         break;
 
-    // ===== 评论：列表 =====
+    // ===== 评论：列表（仅展示已通过审核）=====
     case 'comments':
         $id = intval($_GET['post_id'] ?? 0);
-        $stmt = $pdo->prepare('SELECT * FROM comments WHERE post_id = ? ORDER BY created_at ASC');
+        $stmt = $pdo->prepare('SELECT * FROM comments WHERE post_id = ? AND status = 1 ORDER BY created_at ASC');
         $stmt->execute([$id]);
         json_out(['ok' => true, 'comments' => $stmt->fetchAll()]);
         break;
 
-    // ===== 评论：发表 =====
+    // ===== 评论：发表（进入待审核，审核通过后才公开展示）=====
     case 'comment_add':
         if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
         $id = intval($_POST['post_id'] ?? 0);
@@ -232,12 +232,38 @@ switch ($action) {
             $nickname = '匿名';
             $cuid = $user ? $user['id'] : null;
         }
-        $pdo->prepare('INSERT INTO comments (post_id, nickname, content, user_id, ip) VALUES (?, ?, ?, ?, ?)')
+        $pdo->prepare('INSERT INTO comments (post_id, nickname, content, user_id, ip, status) VALUES (?, ?, ?, ?, ?, 0)')
             ->execute([$id, $nickname, $content, $cuid, get_client_ip()]);
-        if ($prow['user_id'] && $prow['user_id'] != $cuid) {
-            add_notification($pdo, $prow['user_id'], 'comment', $id, '有人评论了你的' . ($prow['board'] == 2 ? '帖子' : '表白') . '：' . mb_substr($content, 0, 30));
+        // 评论需审核，审核通过后再通知作者（见 admin_comment_approve）
+        json_out(['ok' => true, 'msg' => '评论已提交，审核通过后将公开展示']);
+        break;
+
+    // ===== 评论：后台审核列表 =====
+    case 'admin_comment_list':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $status = isset($_GET['status']) ? intval($_GET['status']) : 0;
+        $stmt = $pdo->prepare('SELECT c.*, p.title AS post_title, p.board FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.status = ? ORDER BY c.created_at DESC');
+        $stmt->execute([$status]);
+        json_out(['ok' => true, 'comments' => $stmt->fetchAll()]);
+        break;
+
+    // ===== 评论：后台通过 / 拒绝 =====
+    case 'admin_comment_approve':
+    case 'admin_comment_reject':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $id = intval($_POST['id'] ?? 0);
+        $st = $action === 'admin_comment_approve' ? 1 : 2;
+        $cm = $pdo->prepare('SELECT c.*, p.user_id AS post_uid, p.board FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.id = ?');
+        $cm->execute([$id]);
+        $row = $cm->fetch();
+        if (!$row) json_out(['ok' => false, 'msg' => '评论不存在'], 404);
+        $pdo->prepare('UPDATE comments SET status = ? WHERE id = ?')->execute([$st, $id]);
+        if ($st === 1 && $row['post_uid']) {
+            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的' . ($row['board'] == 2 ? '帖子' : '表白') . '有一条新评论通过审核：' . mb_substr($row['content'], 0, 30));
         }
-        json_out(['ok' => true, 'msg' => '评论成功']);
+        json_out(['ok' => true, 'msg' => $st === 1 ? '已通过' : '已拒绝']);
         break;
 
     // ===== 图形验证码（登录/注册防机器人）=====
@@ -608,8 +634,10 @@ switch ($action) {
         json_out(['ok' => true, 'categories' => $rows]);
         break;
 
-    // ===== 资料：列表 =====
+    // ===== 资料：列表（学习专区，需登录后才能查看）=====
     case 'material_list':
+        $viewer = require_user($pdo);
+        if (!$viewer) json_out(['ok' => false, 'msg' => '请先登录后查看学习专区'], 401);
         $page = max(1, intval($_GET['page'] ?? 1));
         $per = 12;
         $offset = ($page - 1) * $per;
@@ -646,6 +674,8 @@ switch ($action) {
 
     // ===== 资料：下载 =====
     case 'material_download':
+        $viewer = require_user($pdo);
+        if (!$viewer) json_out(['ok' => false, 'msg' => '请先登录后下载'], 401);
         $id = intval($_GET['id'] ?? 0);
         $stmt = $pdo->prepare('SELECT * FROM materials WHERE id = ? AND status = 1');
         $stmt->execute([$id]);
@@ -654,6 +684,32 @@ switch ($action) {
         $path = UPLOAD_DIR . 'materials/' . $m['file_path'];
         if (!is_file($path)) json_out(['ok' => false, 'msg' => '文件已缺失'], 404);
         $pdo->prepare('UPDATE materials SET downloads = downloads + 1 WHERE id = ?')->execute([$id]);
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . rawurlencode($m['orig_name']) . '"');
+        header('Content-Length: ' . $m['file_size']);
+        readfile($path);
+        exit;
+        break;
+
+    // ===== 资料：预览/查看（需登录，图片内联显示，其他文件下载）=====
+    case 'material_view':
+        $viewer = require_user($pdo);
+        if (!$viewer) json_out(['ok' => false, 'msg' => '请先登录后查看'], 401);
+        $id = intval($_GET['id'] ?? 0);
+        $stmt = $pdo->prepare('SELECT * FROM materials WHERE id = ? AND status = 1');
+        $stmt->execute([$id]);
+        $m = $stmt->fetch();
+        if (!$m) json_out(['ok' => false, 'msg' => '资源不存在或未通过审核'], 404);
+        $path = UPLOAD_DIR . 'materials/' . $m['file_path'];
+        if (!is_file($path)) json_out(['ok' => false, 'msg' => '文件已缺失'], 404);
+        $imgTypes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+        $ext = strtolower($m['file_type']);
+        if (isset($imgTypes[$ext])) {
+            header('Content-Type: ' . $imgTypes[$ext]);
+            header('Content-Length: ' . $m['file_size']);
+            readfile($path);
+            exit;
+        }
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . rawurlencode($m['orig_name']) . '"');
         header('Content-Length: ' . $m['file_size']);
@@ -994,6 +1050,48 @@ switch ($action) {
         break;
 
     // ===== 后台：编辑资料文件信息（标题 / 描述 / 状态） =====
+    // ===== 后台：直接添加学习资料（免审核，直接上架）=====
+    case 'admin_material_add':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $title = trim($_POST['title'] ?? '');
+        if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '标题需 2-150 字'], 400);
+        $description = mb_substr(trim($_POST['description'] ?? ''), 0, 1000);
+        $cat = intval($_POST['category_id'] ?? 0);
+        if (empty($_FILES['file'])) json_out(['ok' => false, 'msg' => '请选择要上传的文件'], 400);
+        $up = handle_material_upload($_FILES['file']);
+        if ($up === false) json_out(['ok' => false, 'msg' => '文件需为常见格式且 ≤20MB（支持图片/文档/压缩包等）'], 400);
+        $pdo->prepare('INSERT INTO materials (user_id, title, description, category_id, file_path, orig_name, file_size, file_type, status, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)')
+            ->execute([0, $title, $description, $cat, $up['stored'], $up['orig'], $up['size'], $up['ext'], get_client_ip()]);
+        json_out(['ok' => true, 'msg' => '已直接添加并上架']);
+        break;
+
+    // ===== 后台：预览资料文件（管理员，任意状态均可）=====
+    case 'admin_material_view':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $id = intval($_GET['id'] ?? 0);
+        $stmt = $pdo->prepare('SELECT * FROM materials WHERE id = ?');
+        $stmt->execute([$id]);
+        $m = $stmt->fetch();
+        if (!$m) json_out(['ok' => false, 'msg' => '资源不存在'], 404);
+        $path = UPLOAD_DIR . 'materials/' . $m['file_path'];
+        if (!is_file($path)) json_out(['ok' => false, 'msg' => '文件已缺失'], 404);
+        $imgTypes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+        $ext = strtolower($m['file_type']);
+        if (isset($imgTypes[$ext])) {
+            header('Content-Type: ' . $imgTypes[$ext]);
+            header('Content-Length: ' . $m['file_size']);
+            readfile($path);
+            exit;
+        }
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . rawurlencode($m['orig_name']) . '"');
+        header('Content-Length: ' . $m['file_size']);
+        readfile($path);
+        exit;
+        break;
+
     case 'admin_material_edit':
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);

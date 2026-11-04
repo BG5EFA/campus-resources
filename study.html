@@ -87,6 +87,8 @@
   .mat .acts{display:flex;gap:10px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
   .mat .acts a,.mat .acts button{font-size:13px;border:none;background:none;cursor:pointer;color:var(--blue-d);text-decoration:none;display:flex;align-items:center;gap:4px}
   .mat .acts .like.on{color:var(--blue-d);font-weight:600}
+  .mat .mat-img{width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin:8px 0;background:#f3f5f9;display:block;cursor:zoom-in}
+  .mat .mat-img.err{display:none}
   .empty{text-align:center;color:var(--muted);padding:34px 0;grid-column:1/-1}
   .more{display:block;width:100%;margin:16px 0;padding:12px;background:#fff;border:1px solid var(--line);
     border-radius:12px;color:var(--blue-d);font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(47,123,255,.06)}
@@ -143,7 +145,7 @@
   </div>
 
   <nav class="nav">
-    <a href="index.html">表白墙</a>
+    <a href="index.html">校园墙</a>
     <a href="study.html" class="active">学习专区</a>
   </nav>
 
@@ -170,7 +172,7 @@
       <div class="f"><label>资料标题</label><input type="text" id="m_title" maxlength="150" placeholder="如：高一数学期中复习笔记"></div>
       <div class="f"><label>简介（可选）</label><textarea id="m_desc" maxlength="1000" placeholder="简单说明这份资料的内容…"></textarea></div>
       <div class="f"><label>分类</label><select id="m_cat"></select></div>
-      <div class="f"><label>文件（≤20MB，支持 doc/pdf/ppt/xls/zip 等）</label>
+      <div class="f"><label>文件（≤20MB，支持 图片jpg/png/gif/webp 及 doc/pdf/ppt/xls/zip 等）</label>
         <span class="file-btn">选择文件<input type="file" id="m_file"></span>
         <span id="m_fileName" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
       </div>
@@ -232,7 +234,7 @@
 <div class="mask" id="regMask">
   <div class="modal">
     <span class="close" data-close="regMask">×</span>
-    <h3>注册</h3><p class="h">加入温州市滨海高级中学表白墙</p>
+    <h3>注册</h3><p class="h">加入温州市滨海高级中学校园墙</p>
     <label>用户名（3-20位）</label><input type="text" id="r_user" placeholder="用户名" autocomplete="username">
     <label>昵称（可选）</label><input type="text" id="r_nick" placeholder="昵称" maxlength="50">
     <label>密码（至少6位）</label><input type="password" id="r_pwd" placeholder="密码" autocomplete="new-password">
@@ -245,6 +247,16 @@
     </div>
     <button class="mbtn" id="r_submit">注 册</button>
     <p class="alt">已有账号？<a id="toLogin">去登录</a></p>
+  </div>
+</div>
+
+<div class="mask" id="studyGate">
+  <div class="modal" style="max-width:380px;text-align:center">
+    <span class="close" data-close="studyGate">×</span>
+    <h3>🔒 学习专区需登录</h3>
+    <p class="h">登录后即可查看和下载学习资料</p>
+    <button class="mbtn" id="gateLoginBtn">去登录</button>
+    <p class="alt"><a id="gateRegBtn">还没有账号？立即注册</a></p>
   </div>
 </div>
 
@@ -286,6 +298,12 @@ function logout(){
 }
 function openMask(id){document.getElementById(id).classList.add('show');}
 function closeMask(id){document.getElementById(id).classList.remove('show');}
+function showStudyGate(){
+  openMask('studyGate');
+  const lb=document.getElementById('gateLoginBtn'), rb=document.getElementById('gateRegBtn');
+  if(lb) lb.onclick=()=>{closeMask('studyGate');openMask('loginMask');loadCaptcha('login');};
+  if(rb) rb.onclick=()=>{closeMask('studyGate');openMask('regMask');loadCaptcha('reg');};
+}
 // ---------- 验证码 ----------
 let curCap={login:'',reg:''};
 async function loadCaptcha(kind){
@@ -312,7 +330,8 @@ document.getElementById('l_submit').onclick=async()=>{
   const fd=new FormData();fd.append('action','login');fd.append('username',u);fd.append('password',pw);
   fd.append('cid',curCap.login);fd.append('captcha',document.getElementById('l_cap').value.trim());
   const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();
-  if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('loginMask');renderAuth();toast('登录成功，欢迎 '+esc(d.nickname));document.getElementById('l_pwd').value='';}
+  if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('loginMask');renderAuth();toast('登录成功，欢迎 '+esc(d.nickname));document.getElementById('l_pwd').value='';
+    if(document.getElementById('studyGate')?.classList.contains('show')){ closeMask('studyGate'); loadMats(true); } }
   else{toast(d.msg);loadCaptcha('login');}
 };
 document.getElementById('r_submit').onclick=async()=>{
@@ -322,7 +341,8 @@ document.getElementById('r_submit').onclick=async()=>{
   fd.append('cid',curCap.reg);fd.append('captcha',document.getElementById('r_cap').value.trim());
   fd.append('invite',document.getElementById('r_inv').value.trim());
   const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();
-  if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功，欢迎 '+esc(d.nickname));document.getElementById('r_user').value='';document.getElementById('r_pwd').value='';document.getElementById('r_nick').value='';document.getElementById('r_inv').value='';document.getElementById('r_cap').value='';}
+  if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功，欢迎 '+esc(d.nickname));document.getElementById('r_user').value='';document.getElementById('r_pwd').value='';document.getElementById('r_nick').value='';document.getElementById('r_inv').value='';document.getElementById('r_cap').value='';
+    if(document.getElementById('studyGate')?.classList.contains('show')){ closeMask('studyGate'); loadMats(true); } }
   else{toast(d.msg);loadCaptcha('reg');}
 };
 
@@ -346,7 +366,9 @@ async function loadMats(reset){
   const grid=document.getElementById('grid');
   try{
     let url=API+'?action=material_list&page='+page+'&category='+curCat+'&q='+encodeURIComponent(curQ);
+    if(TOKEN) url+='&token='+encodeURIComponent(TOKEN);
     const r=await fetch(url);const d=await r.json();
+    if(!d.ok){ if(d.msg&&d.msg.indexOf('登录')>=0){ showStudyGate(); } toast(d.msg||'加载失败'); return; }
     if(!d.ok){toast(d.msg||'加载失败');return;}
     if(d.materials.length===0&&page===1){grid.innerHTML='<div class="empty">还没有资料哦，快来分享第一份吧 📚</div>';noMore=true;}
     d.materials.forEach(m=>grid.appendChild(renderMat(m)));
@@ -356,14 +378,18 @@ async function loadMats(reset){
 }
 function renderMat(m){
   const el=document.createElement('div');el.className='mat';
-  const ext=(m.file_type||'').toUpperCase();
+  const ext=(m.file_type||'').toLowerCase();
+  const isImg=['jpg','jpeg','png','gif','webp'].includes(ext);
+  const uploader=esc(m.uploader)||'官方';
+  const imgUrl=API+'?action=material_view&id='+m.id+(TOKEN?'&token='+encodeURIComponent(TOKEN):'');
   el.innerHTML=
     '<span class="cat">'+(esc(m.category_name)||'其他')+'</span>'+
+    (isImg?'<img class="mat-img" src="'+imgUrl+'" loading="lazy" alt="'+esc(m.title)+'" onerror="this.classList.add(\'err\')">':'')+
     '<div class="mt"></div>'+
     (m.description?'<div class="md"></div>':'' )+
-    '<div class="meta">'+(esc(m.uploader)||'匿名')+' · '+ext+' · ⬇'+(m.downloads||0)+'</div>'+
+    '<div class="meta">'+uploader+' · '+(m.file_type||'').toUpperCase()+' · ⬇'+(m.downloads||0)+'</div>'+
     '<div class="acts">'+
-      '<a class="dl" href="'+API+'?action=material_download&id='+m.id+'" >⬇ 下载</a>'+
+      '<a class="dl" href="'+API+'?action=material_download&id='+m.id+(TOKEN?'&token='+encodeURIComponent(TOKEN):'')+'" >⬇ 下载</a>'+
       '<button class="like" data-id="'+m.id+'">❤ <span class="cnt">'+(m.likes||0)+'</span></button>'+
     '</div>';
   el.querySelector('.mt').textContent=m.title;
@@ -399,7 +425,7 @@ document.getElementById('searchInput').onkeydown=e=>{if(e.key==='Enter'){curQ=e.
 document.getElementById('moreBtn').onclick=()=>loadMats(false);
 function resetList(){loadMats(true);}
 
-loadCats();refreshUser();loadMats(true);
+loadCats();refreshUser().then(()=>{ if(!ME){ showStudyGate(); } else { loadMats(true); } });
 </script>
 </body>
 </html>

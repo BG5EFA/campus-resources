@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>表白墙 · 后台管理</title>
+<title>校园墙 · 后台管理</title>
 <style>
   :root{--pink:#ff6b9d;--pink-d:#e8558a;--bg:#fff5f8;--card:#fff;
     --text:#3a2c33;--muted:#9b8a92;--line:#ffe1ec;--green:#3ec98a;--red:#ff5a5a;}
@@ -101,6 +101,10 @@
   .content-row .ctime{font-size:11px;color:var(--muted);white-space:nowrap;align-self:center}
   .content-row .cedit{border:none;background:var(--pink-d);color:#fff;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;white-space:nowrap}
   .content-row .medit{border:none;background:var(--pink-d);color:#fff;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;white-space:nowrap}
+  #matList .content-row{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+  #matList .mat-thumb{width:48px;height:48px;object-fit:cover;border-radius:8px;background:#f3f5f9;flex:0 0 auto;border:none}
+  #matList .mat-info{flex:1;min-width:150px}
+  #matList .mat-info .ct{font-weight:600;font-size:14px;color:var(--text)}
   /* 用户/资料 弹窗 */
   .up-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .btn.create{background:var(--pink);color:#fff;border:none;border-radius:9px;padding:8px 14px;cursor:pointer;font-size:13px}
@@ -119,7 +123,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>💌 表白墙后台</h1>
+    <h1>💌 校园墙后台</h1>
     <button class="btn ghost hidden" id="logoutBtn">退出登录</button>
   </header>
 
@@ -165,6 +169,34 @@
         <button class="btn ghost" id="refreshUsers" style="margin-left:auto">刷新</button>
       </div>
       <div id="userList"></div>
+    </div>
+
+    <div class="panel" id="commentPanel">
+      <div class="up-head">
+        <h2>💬 评论审核</h2>
+        <button class="btn ghost" id="refreshComments" style="margin-left:auto">刷新</button>
+      </div>
+      <div class="filters" id="commentFilters">
+        <button data-s="0" class="on">待审核</button>
+        <button data-s="1">已通过</button>
+        <button data-s="2">已拒绝</button>
+      </div>
+      <div id="commentList"></div>
+    </div>
+
+    <div class="panel" id="matPanel">
+      <div class="up-head">
+        <h2>📚 学习专区管理</h2>
+        <button class="btn create" id="addMatBtn">＋ 添加资料</button>
+      </div>
+      <div class="filters" id="matFilters">
+        <button data-s="" class="on">全部</button>
+        <button data-s="0">待审核</button>
+        <button data-s="1">已上架</button>
+        <button data-s="2">已拒绝</button>
+        <button class="btn ghost" id="refreshMats" style="margin-left:auto">刷新</button>
+      </div>
+      <div id="matList"></div>
     </div>
 
     <div id="list"></div>
@@ -227,6 +259,26 @@
     <div class="m-acts">
       <button class="m-cancel" data-close-mini>取消</button>
       <button class="m-ok" id="em_submit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 添加学习资料弹窗（后台直接上架，免审核） -->
+<div class="mini-mask" id="addMatMask">
+  <div class="box">
+    <h3>添加学习资料</h3>
+    <label>标题</label>
+    <input type="text" id="am_title" placeholder="资料标题" maxlength="150" autocomplete="off">
+    <label>描述</label>
+    <textarea id="am_desc" rows="3" placeholder="描述（可选）"></textarea>
+    <label>分类</label>
+    <select id="am_cat"></select>
+    <label>文件（≤20MB，支持 图片/文档/压缩包 等）</label>
+    <span class="file-btn">选择文件<input type="file" id="am_file"></span>
+    <span id="am_fileName" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+    <div class="m-acts">
+      <button class="m-cancel" data-close-mini>取消</button>
+      <button class="m-ok" id="am_submit">直接上架</button>
     </div>
   </div>
 </div>
@@ -294,6 +346,48 @@ async function loadList(){
     list.innerHTML='';
     d.posts.forEach(p=>list.appendChild(render(p)));
   }catch(_){     list.innerHTML='<div class="empty">加载失败</div>'; }
+}
+
+// 评论审核 =====================================================================
+let curCmtStatus = 0;
+async function loadCommentReviews(){
+  const box = document.getElementById('commentList');
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try{
+    const r = await fetch(API + '?action=admin_comment_list&status=' + curCmtStatus, {headers: authHeaders()});
+    const d = await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); box.innerHTML='<div class="empty">'+d.msg+'</div>'; return; }
+    if(d.comments.length===0){ box.innerHTML='<div class="empty">暂无评论</div>'; return; }
+    box.innerHTML='';
+    d.comments.forEach(c=>box.appendChild(renderComment(c)));
+  }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
+}
+function renderComment(c){
+  const el = document.createElement('div'); el.className='post';
+  const badges = ['待审核','已通过','已拒绝'];
+  let html = '<div class="top"><div class="avatar">'+(esc(c.nickname)[0]||'匿').toUpperCase()+'</div>'+
+    '<div><div class="name">'+esc(c.nickname)+'<span class="badge s'+c.status+'">'+badges[c.status]+'</span></div>'+
+    '<div class="time">'+fmt(c.created_at)+(c.ip?' · IP '+esc(c.ip):'')+'</div>'+
+    '<div class="sub">所属：'+(esc(c.post_title)||'帖子/表白')+'</div></div></div>';
+  html += '<div class="content"></div>';
+  html += '<div class="acts">'+
+    (c.status!==1?'<button class="act-approve" data-id="'+c.id+'">✓ 通过</button>':'')+
+    (c.status!==2?'<button class="act-reject" data-id="'+c.id+'">✕ 拒绝</button>':'')+
+    '<button class="act-delete" data-id="'+c.id+'">🗑 删除</button></div>';
+  el.innerHTML = html;
+  el.querySelector('.content').textContent = c.content;
+  el.querySelector('.act-approve')?.addEventListener('click',()=>commentAct('admin_comment_approve',c.id));
+  el.querySelector('.act-reject')?.addEventListener('click',()=>commentAct('admin_comment_reject',c.id));
+  el.querySelector('.act-delete')?.addEventListener('click',()=>{ if(confirm('确定删除这条评论？')) commentAct('admin_comment_delete',c.id); });
+  return el;
+}
+async function commentAct(action,id){
+  try{
+    const r = await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body:'action='+action+'&id='+id});
+    const d = await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast(d.msg||'操作成功'); loadCommentReviews();
+  }catch(_){ toast('网络错误'); }
 }
 
 async function loadInvites(){
@@ -373,7 +467,7 @@ document.getElementById('loginBtn').addEventListener('click',async ()=>{
     const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'action=admin_login&username='+encodeURIComponent(u)+'&password='+encodeURIComponent(pw)});
     const d=await r.json();
-    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); }
+    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); }
     else toast(d.msg);
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='登录'; }
@@ -403,6 +497,13 @@ document.getElementById('filters').addEventListener('click',(e)=>{
   b.classList.add('on');
   curStatus=b.dataset.s; loadList();
 });
+document.getElementById('commentFilters').addEventListener('click',(e)=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...document.querySelectorAll('#commentFilters button')].forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  curCmtStatus=+b.dataset.s; loadCommentReviews();
+});
+document.getElementById('refreshComments').addEventListener('click',loadCommentReviews);
 
 // 用户管理 =====================================================================
 let curUserStatus = '-1';
@@ -612,7 +713,8 @@ document.getElementById('em_submit').addEventListener('click', async ()=>{
     const d=await r.json();
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
     toast('资料已保存'); closeMini('editMatMask');
-    const box=document.getElementById('ucl_'+editUid2); if(box && !box.classList.contains('hidden')) await loadUserContents(editUid2, box);
+    if(editUid2){ const box=document.getElementById('ucl_'+editUid2); if(box && !box.classList.contains('hidden')) await loadUserContents(editUid2, box); }
+    else await loadMaterials();
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='保存'; }
 });
@@ -658,8 +760,96 @@ document.getElementById('userFilters').addEventListener('click',(e)=>{
 });
 document.getElementById('refreshUsers').addEventListener('click',()=>loadUsers());
 
+// 学习专区管理 =================================================================
+let matData = {}, curMatStatus = '';
+async function loadMaterials(){
+  const box = document.getElementById('matList');
+  try{
+    const r = await fetch(API + '?action=admin_material_list' + (curMatStatus !== '' ? '&status=' + curMatStatus : ''), {headers: authHeaders()});
+    const d = await r.json();
+    if(!d.ok){ if(r.status === 401) return doLogout(); box.innerHTML = '<div class="empty">' + d.msg + '</div>'; return; }
+    matData = {};
+    if(!d.materials.length){ box.innerHTML = '<div class="empty">暂无资料</div>'; return; }
+    const badges = ['待审核', '已上架', '已拒绝'];
+    box.innerHTML = '';
+    d.materials.forEach(m => {
+      matData[m.id] = m;
+      const isImg = ['jpg','jpeg','png','gif','webp'].includes((m.file_type||'').toLowerCase());
+      const thumb = isImg
+        ? '<img class="mat-thumb" src="'+API+'?action=admin_material_view&id='+m.id+'&token='+encodeURIComponent(token)+'" onerror="this.style.display=\'none\'">'
+        : '<div class="mat-thumb" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)">'+(m.file_type||'?').toUpperCase()+'</div>';
+      const el = document.createElement('div'); el.className = 'content-row';
+      el.innerHTML = thumb +
+        '<div class="mat-info"><div class="ct">'+esc(m.title)+'</div>'+
+        '<div class="csub">'+(esc(m.category_name)||'其他')+' · '+(esc(m.uploader)||'官方')+' · '+(m.file_type||'').toUpperCase()+' · '+(m.created_at||'')+'</div></div>'+
+        '<span class="cstatus">'+badges[m.status]+'</span>'+
+        '<button class="medit" data-mid="'+m.id+'">编辑</button>'+
+        (m.status !== 1 ? '<button class="act-approve" data-mid="'+m.id+'">通过</button>' : '')+
+        (m.status !== 2 ? '<button class="act-reject" data-mid="'+m.id+'">拒绝</button>' : '')+
+        '<button class="cdel" data-mid="'+m.id+'">删除</button>';
+      box.appendChild(el);
+    });
+  }catch(_){ box.innerHTML = '<div class="empty">加载失败</div>'; }
+}
+document.getElementById('matFilters').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if(!b || b.id === 'refreshMats') return;
+  [...document.querySelectorAll('#matFilters button[data-s]')].forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); curMatStatus = b.dataset.s; loadMaterials();
+});
+document.getElementById('refreshMats').addEventListener('click', loadMaterials);
+document.getElementById('matList').addEventListener('click', async (e) => {
+  const b = e.target.closest('button'); if(!b) return;
+  const id = b.dataset.mid; if(!id) return;
+  if(b.classList.contains('medit')){ openEditMatById(id); return; }
+  if(b.classList.contains('act-approve')){ if(!confirm('通过该资料并上架？')) return; const d = await apiAct('admin_material_approve', id); toast(d.msg || '已通过'); if(d.ok) loadMaterials(); return; }
+  if(b.classList.contains('act-reject')){ if(!confirm('拒绝该资料？')) return; const d = await apiAct('admin_material_reject', id); toast(d.msg || '已拒绝'); if(d.ok) loadMaterials(); return; }
+  if(b.classList.contains('cdel')){ if(!confirm('确定删除该资料？文件也将一并删除，不可恢复！')) return; const d = await apiAct('admin_material_delete', id); toast(d.msg || '已删除'); if(d.ok) loadMaterials(); return; }
+});
+async function apiAct(action, id){
+  try{ const r = await fetch(API, {method:'POST', headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}), body:'action='+action+'&id='+id}); const d = await r.json(); if(!d.ok){ if(r.status === 401) return doLogout(); } return d; }catch(_){ return {ok:false, msg:'网络错误'}; }
+}
+function openEditMatById(id){
+  const m = matData[id]; if(!m) return;
+  editMid = id; editUid2 = '';
+  document.getElementById('em_title').value = m.title || '';
+  document.getElementById('em_desc').value = m.description || '';
+  document.getElementById('em_status').value = (m.status == 1) ? '1' : '0';
+  openMini('editMatMask');
+}
+// 添加资料（后台直接上架，免审核）
+document.getElementById('addMatBtn').addEventListener('click', async () => {
+  const sel = document.getElementById('am_cat');
+  if(!sel.options.length){
+    try{ const r = await fetch(API + '?action=material_categories'); const d = await r.json(); if(d.ok) d.categories.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o); }); }catch(_){}
+  }
+  document.getElementById('am_title').value = ''; document.getElementById('am_desc').value = ''; document.getElementById('am_file').value = ''; document.getElementById('am_fileName').textContent = '';
+  openMini('addMatMask');
+});
+document.getElementById('am_file').onchange = () => { const f = document.getElementById('am_file').files[0]; document.getElementById('am_fileName').textContent = f ? f.name : ''; };
+document.getElementById('am_submit').addEventListener('click', async () => {
+  const title = document.getElementById('am_title').value.trim();
+  if(!title){ toast('标题不能为空'); return; }
+  const file = document.getElementById('am_file').files[0];
+  if(!file){ toast('请选择文件'); return; }
+  const fd = new FormData();
+  fd.append('action', 'admin_material_add');
+  fd.append('title', title);
+  fd.append('description', document.getElementById('am_desc').value.trim());
+  fd.append('category_id', document.getElementById('am_cat').value);
+  fd.append('file', file);
+  fd.append('token', token);
+  const btn = document.getElementById('am_submit'); btn.disabled = true; btn.textContent = '上传中…';
+  try{
+    const r = await fetch(API, {method:'POST', headers:authHeaders(), body:fd});
+    const d = await r.json();
+    if(!d.ok){ if(r.status === 401) return doLogout(); toast(d.msg); return; }
+    toast('已添加并上架'); closeMini('addMatMask'); loadMaterials();
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled = false; btn.textContent = '直接上架'; }
+});
+
 // 启动：若已登录则直接进入
-if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); }
+if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); }
 </script>
 </body>
 </html>

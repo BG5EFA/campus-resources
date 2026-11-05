@@ -68,7 +68,39 @@ function add_notification($pdo, $user_id, $type, $ref_id, $message)
 {
     if (!$user_id) return;
     $pdo->prepare('INSERT INTO notifications (user_id,type,ref_id,message) VALUES (?,?,?,?)')
-        ->execute([$user_id, $type, $ref_id, $message]);
+        ->execute([$user_id, $type, $ref_id, filter_bad_words($pdo, $message)]);
+}
+
+// 不良用语过滤：命中词替换为等长 *，兼容词间插入空格/标点的变体
+function filter_bad_words($pdo, $text)
+{
+    if ($text === null || $text === '') return $text;
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            foreach ($pdo->query('SELECT word FROM bad_words')->fetchAll(PDO::FETCH_COLUMN) as $w) {
+                $w = trim((string) $w);
+                if ($w !== '' && mb_strlen($w, 'UTF-8') >= 2) $cache[] = $w;
+            }
+        } catch (Throwable $e) {
+            $cache = []; // 词库表未建立时降级，避免影响正常发布
+        }
+    }
+    if (!$cache) return $text;
+    foreach ($cache as $w) {
+        $chars = preg_split('//u', $w, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$chars || count($chars) < 2) continue;
+        $parts = array_map(static function ($c) { return preg_quote($c, '/'); }, $chars);
+        $isAscii = (bool) preg_match('/^[\x00-\x7F]+$/', $w);
+        $boundary = $isAscii ? '\b' : '';
+        $pattern = '/' . $boundary . implode('[\s\p{P}\p{S}_]{0,2}', $parts) . $boundary . '/iu';
+        $out = preg_replace_callback($pattern, static function ($m) {
+            return str_repeat('*', mb_strlen($m[0], 'UTF-8'));
+        }, $text);
+        if ($out !== null) $text = $out;
+    }
+    return $text;
 }
 
 // 校验图形验证码（一次性）
@@ -180,6 +212,9 @@ switch ($action) {
             $image = handle_upload($_FILES['image']);
             if ($image === false) json_out(['ok' => false, 'msg' => '图片需为 jpg/png/gif/webp 且 ≤2MB'], 400);
         }
+        $nickname = filter_bad_words($pdo, $nickname);
+        $title = $title === null ? null : filter_bad_words($pdo, $title);
+        $content = filter_bad_words($pdo, $content);
         $pdo->prepare('INSERT INTO posts (nickname,title,content,image,status,user_id,board,ip) VALUES (?,?,?,?,0,?,?,?)')
             ->execute([$nickname, $title, $content, $image, $uid, $board, get_client_ip()]);
         json_out(['ok' => true, 'msg' => '提交成功，等待审核通过后展示']);
@@ -232,6 +267,8 @@ switch ($action) {
             $nickname = '匿名';
             $cuid = $user ? $user['id'] : null;
         }
+        $nickname = filter_bad_words($pdo, $nickname);
+        $content = filter_bad_words($pdo, $content);
         $pdo->prepare('INSERT INTO comments (post_id, nickname, content, user_id, ip, status) VALUES (?, ?, ?, ?, ?, 0)')
             ->execute([$id, $nickname, $content, $cuid, get_client_ip()]);
         // 评论需审核，审核通过后再通知作者（见 admin_comment_approve）
@@ -306,7 +343,7 @@ switch ($action) {
         if (!preg_match('/^[A-Za-z0-9_\x{4e00}-\x{9fa5}]{3,20}$/u', $username)) json_out(['ok' => false, 'msg' => '用户名需 3-20 位（中英文/数字/下划线）'], 400);
         if (mb_strlen($password) < 6) json_out(['ok' => false, 'msg' => '密码至少 6 位'], 400);
         if ($nickname === '') $nickname = $username;
-        $nickname = mb_substr($nickname, 0,50);
+        $nickname = filter_bad_words($pdo, mb_substr($nickname, 0,50));
         $chk = $pdo->prepare('SELECT 1 FROM users WHERE username = ?');
         $chk->execute([$username]);
         if ($chk->fetch()) json_out(['ok' => false, 'msg' => '该用户名已被注册'], 400);
@@ -363,6 +400,7 @@ switch ($action) {
         $nick = trim($_POST['nickname'] ?? '');
         if ($nick !== '') {
             if (mb_strlen($nick) > 50) json_out(['ok' => false, 'msg' => '昵称过长'], 400);
+            $nick = filter_bad_words($pdo, $nick);
             $pdo->prepare('UPDATE users SET nickname = ? WHERE id = ?')->execute([$nick, $user['id']]);
         }
         $old = trim($_POST['old_password'] ?? '');
@@ -455,6 +493,8 @@ switch ($action) {
         $content = trim($_POST['content'] ?? '');
         if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '标题需 2-150 字'], 400);
         if (mb_strlen($content) < 1 || mb_strlen($content) > 1000) json_out(['ok' => false, 'msg' => '内容需 1-1000 字'], 400);
+        $title = filter_bad_words($pdo, $title);
+        $content = filter_bad_words($pdo, $content);
         $pdo->prepare('INSERT INTO questions (user_id, title, content, ip) VALUES (?, ?, ?, ?)')->execute([$user['id'], $title, $content, get_client_ip()]);
         json_out(['ok' => true, 'msg' => '发布成功']);
         break;
@@ -471,6 +511,7 @@ switch ($action) {
         $q->execute([$id]);
         $qq = $q->fetch();
         if (!$qq) json_out(['ok' => false, 'msg' => '问题不存在'], 404);
+        $content = filter_bad_words($pdo, $content);
         $pdo->prepare('INSERT INTO answers (question_id, user_id, content) VALUES (?, ?, ?)')->execute([$id, $user['id'], $content]);
         $pdo->prepare('UPDATE questions SET answer_count = answer_count + 1 WHERE id = ?')->execute([$id]);
         if ($qq['user_id'] && $qq['user_id'] != $user['id']) {
@@ -568,6 +609,8 @@ switch ($action) {
         $cat = intval($_POST['category_id'] ?? 0);
         if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '标题需 2-150 字'], 400);
         if (mb_strlen($content) < 1 || mb_strlen($content) > 2000) json_out(['ok' => false, 'msg' => '内容需 1-2000 字'], 400);
+        $title = filter_bad_words($pdo, $title);
+        $content = filter_bad_words($pdo, $content);
         $pdo->prepare('INSERT INTO forum_topics (user_id, category_id, title, content, ip) VALUES (?, ?, ?, ?, ?)')->execute([$user['id'], $cat, $title, $content, get_client_ip()]);
         json_out(['ok' => true, 'msg' => '发布成功']);
         break;
@@ -584,6 +627,7 @@ switch ($action) {
         $t->execute([$id]);
         $tt = $t->fetch();
         if (!$tt) json_out(['ok' => false, 'msg' => '帖子不存在'], 404);
+        $content = filter_bad_words($pdo, $content);
         $pdo->prepare('INSERT INTO forum_replies (topic_id, user_id, content) VALUES (?, ?, ?)')->execute([$id, $user['id'], $content]);
         $pdo->prepare('UPDATE forum_topics SET reply_count = reply_count + 1 WHERE id = ?')->execute([$id]);
         if ($tt['user_id'] && $tt['user_id'] != $user['id']) {
@@ -667,8 +711,11 @@ switch ($action) {
         $cat = intval($_POST['category_id'] ?? 0);
         $up = handle_material_upload($_FILES['file'] ?? []);
         if ($up === false) json_out(['ok' => false, 'msg' => '文件需为常见文档格式且 ≤20MB'], 400);
+        $title = filter_bad_words($pdo, $title);
+        $desc = filter_bad_words($pdo, $desc);
+        $orig = filter_bad_words($pdo, $up['orig']);
         $pdo->prepare('INSERT INTO materials (user_id, title, description, category_id, file_path, orig_name, file_size, file_type, status, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)')
-            ->execute([$user['id'], $title, $desc, $cat, $up['stored'], $up['orig'], $up['size'], $up['ext'], get_client_ip()]);
+            ->execute([$user['id'], $title, $desc, $cat, $up['stored'], $orig, $up['size'], $up['ext'], get_client_ip()]);
         json_out(['ok' => true, 'msg' => '上传成功，等待审核后开放下载']);
         break;
 
@@ -1012,6 +1059,7 @@ switch ($action) {
         if ($chk->fetch()) json_out(['ok' => false, 'msg' => '用户名已存在'], 400);
         $hash = password_hash($password, PASSWORD_BCRYPT);
         if ($nickname === '') $nickname = $username;
+        $nickname = filter_bad_words($pdo, $nickname);
         $pdo->prepare('INSERT INTO users (username, password, nickname, status) VALUES (?, ?, ?, 1)')
             ->execute([$username, $hash, $nickname]);
         json_out(['ok' => true, 'id' => $pdo->lastInsertId()]);
@@ -1028,6 +1076,7 @@ switch ($action) {
         $status   = isset($_POST['status']) ? intval($_POST['status']) : null;
         $reason   = trim($_POST['reason'] ?? '');
         if ($nickname !== '') {
+            $nickname = filter_bad_words($pdo, $nickname);
             $pdo->prepare('UPDATE users SET nickname = ? WHERE id = ?')->execute([$nickname, $uid]);
         }
         if ($password !== '') {
@@ -1061,8 +1110,11 @@ switch ($action) {
         if (empty($_FILES['file'])) json_out(['ok' => false, 'msg' => '请选择要上传的文件'], 400);
         $up = handle_material_upload($_FILES['file']);
         if ($up === false) json_out(['ok' => false, 'msg' => '文件需为常见格式且 ≤20MB（支持图片/文档/压缩包等）'], 400);
+        $title = filter_bad_words($pdo, $title);
+        $description = filter_bad_words($pdo, $description);
+        $orig = filter_bad_words($pdo, $up['orig']);
         $pdo->prepare('INSERT INTO materials (user_id, title, description, category_id, file_path, orig_name, file_size, file_type, status, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)')
-            ->execute([0, $title, $description, $cat, $up['stored'], $up['orig'], $up['size'], $up['ext'], get_client_ip()]);
+            ->execute([0, $title, $description, $cat, $up['stored'], $orig, $up['size'], $up['ext'], get_client_ip()]);
         json_out(['ok' => true, 'msg' => '已直接添加并上架']);
         break;
 
@@ -1101,6 +1153,8 @@ switch ($action) {
         $description = trim($_POST['description'] ?? '');
         $status = isset($_POST['status']) ? intval($_POST['status']) : null;
         if ($title === '') json_out(['ok' => false, 'msg' => '标题必填'], 400);
+        $title = filter_bad_words($pdo, $title);
+        $description = filter_bad_words($pdo, $description);
         $sql = 'UPDATE materials SET title = ?, description = ?';
         $params = [$title, $description];
         if ($status === 0 || $status === 1) { $sql .= ', status = ?'; $params[] = $status; }
@@ -1119,8 +1173,8 @@ switch ($action) {
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $id = intval($_POST['id'] ?? 0);
         if ($id <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
-        $title = trim($_POST['title'] ?? '');
-        $content = trim($_POST['content'] ?? '');
+        $title = filter_bad_words($pdo, trim($_POST['title'] ?? ''));
+        $content = filter_bad_words($pdo, trim($_POST['content'] ?? ''));
         $act = $action;
         if ($act === 'admin_comment_edit') {
             if ($content === '') json_out(['ok' => false, 'msg' => '评论内容不能为空'], 400);
@@ -1130,6 +1184,46 @@ switch ($action) {
             if ($title === '' || $content === '') json_out(['ok' => false, 'msg' => '标题和正文不能为空'], 400);
             $pdo->prepare("UPDATE `$tbl` SET title = ?, content = ? WHERE id = ?")->execute([$title, $content, $id]);
         }
+        json_out(['ok' => true]);
+        break;
+
+    // ===== 后台：不良用语词库（发布时自动替换为 *）=====
+    case 'admin_badword_list':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        try {
+            $rows = $pdo->query('SELECT id, word, created_at FROM bad_words ORDER BY id DESC')->fetchAll();
+        } catch (Throwable $e) {
+            $rows = [];
+        }
+        json_out(['ok' => true, 'words' => $rows]);
+        break;
+
+    case 'admin_badword_add':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $raw = trim($_POST['words'] ?? '');
+        if ($raw === '') json_out(['ok' => false, 'msg' => '请输入要添加的词'], 400);
+        $items = preg_split('/[,，;；\r\n]+/u', $raw, -1, PREG_SPLIT_NO_EMPTY);
+        $added = 0;
+        $stmt = $pdo->prepare('INSERT IGNORE INTO bad_words (word) VALUES (?)');
+        foreach ($items as $it) {
+            $w = trim($it);
+            $len = mb_strlen($w, 'UTF-8');
+            if ($w === '' || $len < 2 || $len > 50) continue;
+            $stmt->execute([$w]);
+            $added += $stmt->rowCount();
+        }
+        json_out(['ok' => true, 'added' => $added, 'msg' => '已添加 ' . $added . ' 个词']);
+        break;
+
+    case 'admin_badword_delete':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $wid = intval($_POST['id'] ?? 0);
+        if ($wid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $pdo->prepare('DELETE FROM bad_words WHERE id = ?')->execute([$wid]);
         json_out(['ok' => true]);
         break;
 

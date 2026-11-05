@@ -107,6 +107,12 @@
   #matList .mat-info .ct{font-weight:600;font-size:14px;color:var(--text)}
   /* 用户/资料 弹窗 */
   .up-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .bw-tip{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.6}
+  .bw-add{display:flex;gap:8px;margin-bottom:12px}
+  .bw-add input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;outline:none}
+  #badwordList .content-row{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px;align-items:center;gap:12px}
+  #badwordList .bw-word{flex:1;font-size:13px;word-break:break-all}
+  #badwordList .cdel{border:none;background:var(--pink-d);color:#fff;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap}
   .btn.create{background:var(--pink);color:#fff;border:none;border-radius:9px;padding:8px 14px;cursor:pointer;font-size:13px}
   .mini-mask{position:fixed;inset:0;background:rgba(58,44,51,.5);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
   .mini-mask.show{display:flex}
@@ -197,6 +203,19 @@
         <button class="btn ghost" id="refreshMats" style="margin-left:auto">刷新</button>
       </div>
       <div id="matList"></div>
+    </div>
+
+    <div class="panel" id="badwordPanel">
+      <div class="up-head">
+        <h2>🚫 敏感词管理</h2>
+        <button class="btn ghost" id="refreshBadwords" style="margin-left:auto">刷新</button>
+      </div>
+      <p class="bw-tip">发布内容时，词库中的用语会自动替换为等长 *；词间插入空格 / 符号的变体同样拦截。</p>
+      <div class="bw-add">
+        <input type="text" id="bw_input" placeholder="输入词，多个用逗号或换行分隔" autocomplete="off">
+        <button class="btn create" id="bw_add">＋ 添加</button>
+      </div>
+      <div id="badwordList"></div>
     </div>
 
     <div id="list"></div>
@@ -467,7 +486,7 @@ document.getElementById('loginBtn').addEventListener('click',async ()=>{
     const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'action=admin_login&username='+encodeURIComponent(u)+'&password='+encodeURIComponent(pw)});
     const d=await r.json();
-    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); }
+    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); }
     else toast(d.msg);
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='登录'; }
@@ -848,8 +867,39 @@ document.getElementById('am_submit').addEventListener('click', async () => {
   finally{ btn.disabled = false; btn.textContent = '直接上架'; }
 });
 
+// 敏感词管理 ==================================================================
+function escHtml(s){return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function loadBadwords(){
+  const box=document.getElementById('badwordList');
+  box.innerHTML='<div class="empty">加载中…</div>';
+  try{
+    const r=await fetch(API+'?action=admin_badword_list',{headers:authHeaders()});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) doLogout(); return; }
+    if(!d.words.length){ box.innerHTML='<div class="empty">词库为空</div>'; return; }
+    box.innerHTML=d.words.map(w=>'<div class="content-row"><span class="bw-word">'+escHtml(w.word)+'</span><button class="cdel" data-id="'+w.id+'">删除</button></div>').join('');
+  }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
+}
+document.getElementById('bw_add').addEventListener('click', async () => {
+  const v=document.getElementById('bw_input').value.trim();
+  if(!v){ toast('请输入要添加的词'); return; }
+  try{
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body:'action=admin_badword_add&words='+encodeURIComponent(v)});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast(d.msg); document.getElementById('bw_input').value=''; loadBadwords();
+  }catch(_){ toast('网络错误'); }
+});
+document.getElementById('badwordList').addEventListener('click', async e => {
+  const b=e.target.closest('button.cdel'); if(!b) return;
+  if(!confirm('确定删除这个词？')) return;
+  const d=await apiAct('admin_badword_delete', b.dataset.id);
+  if(d.ok) loadBadwords();
+});
+document.getElementById('refreshBadwords').addEventListener('click', loadBadwords);
+
 // 启动：若已登录则直接进入
-if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); }
+if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); }
 </script>
 </body>
 </html>

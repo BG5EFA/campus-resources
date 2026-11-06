@@ -114,6 +114,22 @@
   #badwordList .bw-word{flex:1;font-size:13px;word-break:break-all}
   #badwordList .cdel{border:none;background:var(--pink-d);color:#fff;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap}
   .btn.create{background:var(--pink);color:#fff;border:none;border-radius:9px;padding:8px 14px;cursor:pointer;font-size:13px}
+  /* 更新修复日志 */
+  .cl-form{margin-bottom:14px}
+  .cl-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .cl-row input,.cl-row select{padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;outline:none}
+  #cl_title{flex:2;min-width:180px}
+  #cl_version{flex:1;min-width:120px}
+  .cl-form textarea{width:100%;box-sizing:border-box;min-height:80px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;outline:none;resize:vertical;font-family:inherit}
+  .cl-acts{display:flex;gap:8px;margin-top:8px}
+  #clList .content-row{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+  #clList .cl-main{flex:1;min-width:200px}
+  #clList .cl-t{font-size:13px;font-weight:700;margin-bottom:3px}
+  #clList .cl-c{font-size:12px;color:var(--muted);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  #clList .cl-meta{font-size:11px;color:var(--muted);margin-top:4px}
+  #clList .cl-edit,#clList .cl-del{border:none;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap}
+  #clList .cl-edit{background:var(--blue);color:#fff}
+  #clList .cl-del{background:var(--pink-d);color:#fff}
   .mini-mask{position:fixed;inset:0;background:rgba(58,44,51,.5);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
   .mini-mask.show{display:flex}
   .mini-mask .box{background:#fff;border-radius:14px;padding:20px 18px;width:100%;max-width:340px;box-shadow:0 12px 40px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
@@ -216,6 +232,32 @@
         <button class="btn create" id="bw_add">＋ 添加</button>
       </div>
       <div id="badwordList"></div>
+    </div>
+
+    <div class="panel" id="changelogPanel">
+      <div class="up-head">
+        <h2>📢 更新修复日志</h2>
+        <button class="btn ghost" id="refreshChangelog" style="margin-left:auto">刷新</button>
+      </div>
+      <p class="bw-tip">只有管理员能发布，前台首页「关于我们」旁边会展示给大家看。写清楚修复了什么问题、新增了哪些功能即可。</p>
+      <div class="cl-form">
+        <div class="cl-row">
+          <input type="text" id="cl_title" placeholder="标题，如：修复图片无法上传" maxlength="150">
+          <select id="cl_kind">
+            <option value="fix">🔧 修复</option>
+            <option value="new">✨ 新增</option>
+            <option value="improve">⚡ 优化</option>
+            <option value="notice">📌 公告</option>
+          </select>
+          <input type="text" id="cl_version" placeholder="版本号（可选）" maxlength="50">
+        </div>
+        <textarea id="cl_content" placeholder="写清楚这次修复了什么 / 新增了什么" maxlength="2000"></textarea>
+        <div class="cl-acts">
+          <button class="btn create" id="cl_submit">发布更新</button>
+          <button class="btn ghost hidden" id="cl_cancel">取消编辑</button>
+        </div>
+      </div>
+      <div id="clList"></div>
     </div>
 
     <div id="list"></div>
@@ -486,7 +528,7 @@ document.getElementById('loginBtn').addEventListener('click',async ()=>{
     const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'action=admin_login&username='+encodeURIComponent(u)+'&password='+encodeURIComponent(pw)});
     const d=await r.json();
-    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); }
+    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); loadChangelogAdmin(); }
     else toast(d.msg);
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='登录'; }
@@ -904,8 +946,96 @@ document.getElementById('badwordList').addEventListener('click', async e => {
 });
 document.getElementById('refreshBadwords').addEventListener('click', loadBadwords);
 
+// 更新修复日志管理 ==========================================================
+const CL_TAG = {fix:'🔧 修复', new:'✨ 新增', improve:'⚡ 优化', notice:'📌 公告'};
+let clEditId = 0, clCache = [];
+function clReset(){
+  clEditId = 0;
+  document.getElementById('cl_title').value = '';
+  document.getElementById('cl_content').value = '';
+  document.getElementById('cl_version').value = '';
+  document.getElementById('cl_kind').value = 'fix';
+  document.getElementById('cl_submit').textContent = '发布更新';
+  document.getElementById('cl_cancel').classList.add('hidden');
+}
+async function loadChangelogAdmin(){
+  const box = document.getElementById('clList');
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try{
+    const r = await fetch(API + '?action=admin_changelog_list', {headers:authHeaders()});
+    const d = await r.json();
+    if(!d.ok){ box.textContent = d.msg || '加载失败'; return; }
+    clCache = d.list || [];
+    if(!clCache.length){ box.innerHTML = '<div class="empty">暂无记录，发布第一条更新吧</div>'; return; }
+    box.textContent = '';
+    clCache.forEach(it => {
+      const row = document.createElement('div'); row.className = 'content-row';
+      const main = document.createElement('div'); main.className = 'cl-main';
+      const t = document.createElement('div'); t.className = 'cl-t';
+      t.textContent = (CL_TAG[it.kind] || '更新') + ' · ' + it.title + (it.version ? ' · ' + it.version : '');
+      const c = document.createElement('div'); c.className = 'cl-c'; c.textContent = it.content;
+      const meta = document.createElement('div'); meta.className = 'cl-meta'; meta.textContent = fmt(it.created_at);
+      main.append(t, c, meta);
+      const edit = document.createElement('button'); edit.className = 'cl-edit'; edit.dataset.id = it.id; edit.dataset.act = 'edit'; edit.textContent = '编辑';
+      const del = document.createElement('button'); del.className = 'cl-del'; del.dataset.id = it.id; del.dataset.act = 'del'; del.textContent = '删除';
+      row.append(main, edit, del);
+      box.appendChild(row);
+    });
+  }catch(_){ box.textContent = '加载失败'; }
+}
+document.getElementById('cl_submit').addEventListener('click', async () => {
+  const title = document.getElementById('cl_title').value.trim();
+  const content = document.getElementById('cl_content').value.trim();
+  if(title.length < 2){ toast('标题至少 2 个字'); return; }
+  if(!content){ toast('请填写内容'); return; }
+  const fd = new FormData();
+  fd.append('action', clEditId ? 'admin_changelog_edit' : 'admin_changelog_add');
+  fd.append('token', token);
+  fd.append('title', title); fd.append('content', content);
+  fd.append('kind', document.getElementById('cl_kind').value);
+  fd.append('version', document.getElementById('cl_version').value.trim());
+  if(clEditId) fd.append('id', clEditId);
+  const btn = document.getElementById('cl_submit'); btn.disabled = true;
+  try{
+    const r = await fetch(API, {method:'POST', headers:authHeaders(), body:fd});
+    const d = await r.json();
+    if(!d.ok){ if(r.status === 401) return doLogout(); toast(d.msg || '操作失败'); return; }
+    toast(clEditId ? '已保存修改' : '已发布'); clReset(); loadChangelogAdmin();
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled = false; }
+});
+document.getElementById('cl_cancel').addEventListener('click', clReset);
+document.getElementById('refreshChangelog').addEventListener('click', loadChangelogAdmin);
+document.getElementById('clList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if(!b) return;
+  const id = parseInt(b.dataset.id, 10); if(!id) return;
+  if(b.dataset.act === 'edit'){
+    const it = clCache.find(x => x.id == id); if(!it) return;
+    clEditId = id;
+    document.getElementById('cl_title').value = it.title;
+    document.getElementById('cl_content').value = it.content;
+    document.getElementById('cl_version').value = it.version || '';
+    document.getElementById('cl_kind').value = it.kind || 'fix';
+    document.getElementById('cl_submit').textContent = '保存修改';
+    document.getElementById('cl_cancel').classList.remove('hidden');
+    document.getElementById('cl_title').focus();
+    return;
+  }
+  if(b.dataset.act === 'del'){
+    if(!confirm('确定删除这条更新记录？')) return;
+    const fd = new FormData();
+    fd.append('action', 'admin_changelog_delete'); fd.append('token', token); fd.append('id', id);
+    try{
+      const r = await fetch(API, {method:'POST', headers:authHeaders(), body:fd});
+      const d = await r.json();
+      if(!d.ok){ toast(d.msg || '删除失败'); return; }
+      toast('已删除'); clReset(); loadChangelogAdmin();
+    }catch(_){ toast('网络错误'); }
+  }
+});
+
 // 启动：若已登录则直接进入
-if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); }
+if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); loadChangelogAdmin(); }
 </script>
 </body>
 </html>

@@ -453,8 +453,8 @@
   <div class="box">
     <h3 id="ec_heading">编辑文本</h3>
     <div id="ec_title_wrap">
-      <label>标题</label>
-      <input type="text" id="ec_title" placeholder="标题" maxlength="150" autocomplete="off">
+      <label>标题（可留空）</label>
+      <input type="text" id="ec_title" placeholder="标题，可留空" maxlength="150" autocomplete="off">
     </div>
     <label>正文</label>
     <textarea id="ec_content" rows="6" placeholder="正文内容"></textarea>
@@ -901,7 +901,6 @@ document.getElementById('ec_submit').addEventListener('click', async ()=>{
   const hasTitle = (editEtype!=='comment');
   const title = hasTitle? document.getElementById('ec_title').value.trim() : '';
   const content = document.getElementById('ec_content').value.trim();
-  if(hasTitle && !title){ toast('标题不能为空'); return; }
   if(!content){ toast('正文不能为空'); return; }
   const btn=document.getElementById('ec_submit'); btn.disabled=true; btn.textContent='保存中…';
   try{

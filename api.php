@@ -1248,6 +1248,73 @@ switch ($action) {
         json_out(['ok' => true]);
         break;
 
+    // ===== 更新修复日志：前台公开只读 =====
+    case 'changelog_list':
+        $limit = min(100, max(1, intval($_GET['limit'] ?? 30)));
+        try {
+            $rows = $pdo->query('SELECT id, title, content, kind, version, created_at FROM changelog ORDER BY created_at DESC, id DESC LIMIT ' . $limit)->fetchAll();
+        } catch (Throwable $e) {
+            $rows = [];
+        }
+        json_out(['ok' => true, 'list' => $rows]);
+        break;
+
+    // ===== 后台：更新修复日志管理（仅管理员）=====
+    case 'admin_changelog_list':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        try {
+            $rows = $pdo->query('SELECT id, title, content, kind, version, created_at FROM changelog ORDER BY created_at DESC, id DESC LIMIT 200')->fetchAll();
+        } catch (Throwable $e) {
+            $rows = [];
+        }
+        json_out(['ok' => true, 'list' => $rows]);
+        break;
+
+    case 'admin_changelog_add':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $title = trim($_POST['title'] ?? '');
+        $content = trim($_POST['content'] ?? '');
+        if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '标题需 2-150 字'], 400);
+        if (mb_strlen($content) < 1 || mb_strlen($content) > 2000) json_out(['ok' => false, 'msg' => '内容需 1-2000 字'], 400);
+        $kind = $_POST['kind'] ?? 'fix';
+        if (!in_array($kind, ['fix', 'new', 'improve', 'notice'], true)) $kind = 'fix';
+        $version = mb_substr(trim($_POST['version'] ?? ''), 0, 50);
+        $pdo->prepare('INSERT INTO changelog (title, content, kind, version, admin_id) VALUES (?, ?, ?, ?, ?)')
+            ->execute([filter_bad_words($pdo, $title), filter_bad_words($pdo, $content), $kind, $version, intval($adm['admin_id'])]);
+        json_out(['ok' => true, 'msg' => '已发布']);
+        break;
+
+    case 'admin_changelog_edit':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $id = intval($_POST['id'] ?? 0);
+        if ($id <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $title = trim($_POST['title'] ?? '');
+        $content = trim($_POST['content'] ?? '');
+        if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '标题需 2-150 字'], 400);
+        if (mb_strlen($content) < 1 || mb_strlen($content) > 2000) json_out(['ok' => false, 'msg' => '内容需 1-2000 字'], 400);
+        $kind = $_POST['kind'] ?? 'fix';
+        if (!in_array($kind, ['fix', 'new', 'improve', 'notice'], true)) $kind = 'fix';
+        $version = mb_substr(trim($_POST['version'] ?? ''), 0, 50);
+        $pdo->prepare('UPDATE changelog SET title = ?, content = ?, kind = ?, version = ? WHERE id = ?')
+            ->execute([filter_bad_words($pdo, $title), filter_bad_words($pdo, $content), $kind, $version, $id]);
+        json_out(['ok' => true, 'msg' => '已保存']);
+        break;
+
+    case 'admin_changelog_delete':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $id = intval($_POST['id'] ?? 0);
+        if ($id <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $pdo->prepare('DELETE FROM changelog WHERE id = ?')->execute([$id]);
+        json_out(['ok' => true, 'msg' => '已删除']);
+        break;
+
     default:
         json_out(['ok' => false, 'msg' => '未知操作'], 404);
 }

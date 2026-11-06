@@ -292,7 +292,7 @@
     <textarea id="am_desc" rows="3" placeholder="描述（可选）"></textarea>
     <label>分类</label>
     <select id="am_cat"></select>
-    <label>文件（≤20MB，支持 图片/文档/压缩包 等）</label>
+    <label>文件（≤30MB，支持 图片/文档/压缩包 等）</label>
     <span class="file-btn">选择文件<input type="file" id="am_file"></span>
     <span id="am_fileName" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
     <div class="m-acts">
@@ -844,12 +844,18 @@ document.getElementById('addMatBtn').addEventListener('click', async () => {
   document.getElementById('am_title').value = ''; document.getElementById('am_desc').value = ''; document.getElementById('am_file').value = ''; document.getElementById('am_fileName').textContent = '';
   openMini('addMatMask');
 });
-document.getElementById('am_file').onchange = () => { const f = document.getElementById('am_file').files[0]; document.getElementById('am_fileName').textContent = f ? f.name : ''; };
+const MAX_MAT = 30 * 1024 * 1024;
+document.getElementById('am_file').onchange = () => {
+  const inp = document.getElementById('am_file'), f = inp.files[0];
+  if(f && f.size > MAX_MAT){ inp.value = ''; document.getElementById('am_fileName').textContent = ''; toast('文件不能超过 30MB，请压缩后重试'); return; }
+  document.getElementById('am_fileName').textContent = f ? f.name : '';
+};
 document.getElementById('am_submit').addEventListener('click', async () => {
   const title = document.getElementById('am_title').value.trim();
   if(!title){ toast('标题不能为空'); return; }
   const file = document.getElementById('am_file').files[0];
   if(!file){ toast('请选择文件'); return; }
+  if(file.size > MAX_MAT){ toast('文件不能超过 30MB，请压缩后重试'); return; }
   const fd = new FormData();
   fd.append('action', 'admin_material_add');
   fd.append('title', title);

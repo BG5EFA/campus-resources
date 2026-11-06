@@ -73,7 +73,7 @@
   <div class="topbar" id="authArea"><button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button></div>
   <nav class="nav">
     <a href="index.html">校园墙</a><a href="treehole.html">树洞</a>
-    <a href="forum.html" class="active">论坛</a><a href="qa.html">问答</a><a href="study.html">学习专区</a><a href="me.html">我的</a>
+    <a href="forum.html" class="active">论坛</a><a href="qa.html">问答</a><a href="study.html">学习专区</a><a href="me.html">我的</a><a href="info.html">关于 / 更新</a>
   </nav>
   <header><img class="badge" src="/badge.png" alt="校徽" onerror="this.style.display='none'">
     <h1 class="title">校园论坛</h1><p class="sub">校园生活 · 学习交流 · 失物招领，一起聊</p></header>
@@ -139,5 +139,6 @@ document.getElementById('f_submit').onclick=async()=>{const title=document.getEl
 function resetList(){loadTopics(true);}
 loadCats();refreshUser();loadTopics(true);
 </script>
+<script src="notice.js"></script>
 </body>
 </html>

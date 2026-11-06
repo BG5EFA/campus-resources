@@ -1325,7 +1325,8 @@ switch ($action) {
             $pdo->prepare('UPDATE comments SET content = ? WHERE id = ?')->execute([$content, $id]);
         } else {
             $tbl = ['admin_post_edit' => 'posts', 'admin_question_edit' => 'questions', 'admin_forum_edit' => 'forum_topics'][$act];
-            if ($title === '' || $content === '') json_out(['ok' => false, 'msg' => '标题和正文不能为空'], 400);
+            // 标题可留空：校园墙 / 树洞帖子本来就没有标题，编辑时只改正文即可
+            if ($content === '') json_out(['ok' => false, 'msg' => '正文不能为空'], 400);
             $pdo->prepare("UPDATE `$tbl` SET title = ?, content = ? WHERE id = ?")->execute([$title, $content, $id]);
         }
         json_out(['ok' => true]);

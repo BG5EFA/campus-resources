@@ -44,6 +44,7 @@
   .post .pic{margin:8px 0;border-radius:10px;max-width:100%;max-width:min(100%,240px);max-height:190px;
     width:auto;height:auto;object-fit:contain;display:block;background:#f4f9ff;cursor:zoom-in}
   @media(max-width:600px){ .post .pic{max-width:min(100%,190px);max-height:160px} }
+  .pic-fail{display:inline-block;margin:8px 0;padding:8px 12px;border-radius:9px;background:#f4f9ff;border:1px dashed #c9d9f0;color:#7d8ca6;font-size:12px}
   .img-mask{position:fixed;inset:0;background:rgba(12,25,45,.88);display:none;
     align-items:center;justify-content:center;z-index:120;padding:16px;cursor:zoom-out}
   .img-mask.show{display:flex}
@@ -101,7 +102,7 @@
   </section>
 
   <div class="wall" id="wall"></div>
-<div class="img-mask" id="imgMask"><img id="imgMaskPic" src="" alt="原图"></div>
+<div class="img-mask" id="imgMask"><img id="imgMaskPic" alt="原图"></div>
   <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
   <div class="toast" id="toast"></div>
 </div>
@@ -141,7 +142,7 @@ document.getElementById('l_submit').onclick=async()=>{const u=document.getElemen
 document.getElementById('r_submit').onclick=async()=>{const u=document.getElementById('r_user').value.trim(),nick=document.getElementById('r_nick').value.trim(),pw=document.getElementById('r_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const fd=new FormData();fd.append('action','register');fd.append('username',u);fd.append('password',pw);if(nick)fd.append('nickname',nick);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功');document.getElementById('r_user').value='';document.getElementById('r_pwd').value='';document.getElementById('r_nick').value='';}else toast(d.msg);};
 
 async function loadPosts(reset){if(loading||(noMore&&!reset))return;loading=true;if(reset){page=1;noMore=false;document.getElementById('wall').innerHTML='';}const wall=document.getElementById('wall');try{const r=await fetch(API+'?action=list&board=1&page='+page);const d=await r.json();if(!d.ok){toast(d.msg||'加载失败');return;}if(d.posts.length===0&&page===1){wall.innerHTML='<div class="empty">还没有树洞内容，来做第一个吧 🌿</div>';noMore=true;}d.posts.forEach(p=>wall.appendChild(renderPost(p)));if(page*d.per>=d.total)noMore=true;document.getElementById('moreBtn').style.display=noMore?'none':'block';page++;}catch(_){toast('网络错误');}finally{loading=false;}}
-function renderPost(p){const el=document.createElement('div');el.className='post';let html='<div class="top"><div class="avatar">匿</div><div><div class="name">匿名</div><div class="time"></div></div></div>';html+='<div class="content"></div>';const img=safeImg(p.image);if(img)html+='<img class="pic" src="'+img+'" alt="配图">';html+='<div class="acts"><button class="like"><span class="cnt">'+(p.likes||0)+'</span> ❤</button><button class="cmt-toggle">💬 '+(p.comment_count||0)+'</button></div>';html+='<div class="comments"><div class="cmt-list"></div><div class="cmt-form"><input type="text" placeholder="匿名留言…" maxlength="200"><button>发送</button></div></div>';el.innerHTML=html;el.querySelector('.time').textContent=fmtTime(p.created_at);el.querySelector('.content').textContent=p.content;
+function renderPost(p){const el=document.createElement('div');el.className='post';let html='<div class="top"><div class="avatar">匿</div><div><div class="name">匿名</div><div class="time"></div></div></div>';html+='<div class="content"></div>';const img=safeImg(p.image);if(img)html+='<img class="pic" src="'+img+'" alt="配图" onerror="picFail(this)">';html+='<div class="acts"><button class="like"><span class="cnt">'+(p.likes||0)+'</span> ❤</button><button class="cmt-toggle">💬 '+(p.comment_count||0)+'</button></div>';html+='<div class="comments"><div class="cmt-list"></div><div class="cmt-form"><input type="text" placeholder="匿名留言…" maxlength="200"><button>发送</button></div></div>';el.innerHTML=html;el.querySelector('.time').textContent=fmtTime(p.created_at);el.querySelector('.content').textContent=p.content;
   el.querySelector('.like').onclick=async(e)=>{const b=e.currentTarget;const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=like&post_id='+p.id});const d=await r.json();if(d.ok){b.querySelector('.cnt').textContent=d.likes;}else toast(d.msg);};
   const box=el.querySelector('.comments');el.querySelector('.cmt-toggle').onclick=async()=>{box.classList.toggle('show');if(box.classList.contains('show')&&!box.dataset.loaded){await loadComments(p.id,box);box.dataset.loaded='1';}};
   el.querySelector('.cmt-form button').onclick=async()=>{const inp=el.querySelector('.cmt-form input');const v=inp.value.trim();if(!v)return;const fd=new FormData();fd.append('action','comment_add');fd.append('post_id',p.id);fd.append('content',v);if(TOKEN)fd.append('token',TOKEN);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){inp.value='';box.dataset.loaded='';await loadComments(p.id,box);const c=el.querySelector('.cmt-toggle');c.textContent='💬 '+(parseInt((c.textContent.match(/\d+/)||[0])[0])+1);}else toast(d.msg);};
@@ -152,6 +153,10 @@ const imgInput=document.getElementById('image');
 imgInput.onchange=()=>{if(imgInput.files[0]){};};
 document.getElementById('submitBtn').onclick=async()=>{const content=document.getElementById('content').value.trim();if(!content){toast('内容不能为空');return;}const btn=document.getElementById('submitBtn');btn.disabled=true;btn.textContent='发布中…';const fd=new FormData();fd.append('action','create');fd.append('board','1');fd.append('content',content);fd.append('anonymous','1');if(TOKEN)fd.append('token',TOKEN);if(imgInput.files[0])fd.append('image',imgInput.files[0]);try{const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast('发布成功，等待审核 ❤');document.getElementById('content').value='';imgInput.value='';loadPosts(true);}else toast(d.msg);}catch(_){toast('网络错误');}finally{btn.disabled=false;btn.textContent='匿名发布';}};
 document.getElementById('moreBtn').onclick=()=>loadPosts(false);
+function picFail(img){
+  if(img.dataset.retried){img.style.display='none';if(img.parentNode&&!img.parentNode.querySelector('.pic-fail')){var t=document.createElement('div');t.className='pic-fail';t.textContent='图片暂时加载不出来，稍后刷新再试';img.parentNode.insertBefore(t,img.nextSibling);}return;}
+  img.dataset.retried='1';img.src+=(img.src.indexOf('?')>=0?'&':'?')+'_r='+Date.now();
+}
 refreshUser();loadPosts(true);
 const imgMask=document.getElementById('imgMask');
 document.getElementById('wall').addEventListener('click',e=>{const pic=e.target.closest('.pic');if(!pic)return;document.getElementById('imgMaskPic').src=pic.src;imgMask.classList.add('show');});

@@ -89,6 +89,7 @@
   .mat .acts .like.on{color:var(--blue-d);font-weight:600}
   .mat .mat-img{width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin:8px 0;background:#f3f5f9;display:block;cursor:zoom-in}
   .mat .mat-img.err{display:none}
+  .pic-fail{display:inline-block;margin:8px 0;padding:8px 12px;border-radius:9px;background:#f4f9ff;border:1px dashed #c9d9f0;color:#7d8ca6;font-size:12px}
   .empty{text-align:center;color:var(--muted);padding:34px 0;grid-column:1/-1}
   .more{display:block;width:100%;margin:16px 0;padding:12px;background:#fff;border:1px solid var(--line);
     border-radius:12px;color:var(--blue-d);font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(47,123,255,.06)}
@@ -203,11 +204,11 @@
     <p>微信号：<span class="wx">BG5EFA</span>，有任何建议可以找我。</p>
     <div class="sponsor">
       <figure>
-        <img src="uploads/sponsor_alipay.jpg" alt="支付宝赞助收款码" loading="lazy">
+        <img src="uploads/sponsor_alipay.jpg" alt="支付宝赞助收款码" loading="lazy" onerror="picFail(this)">
         <figcaption>支付宝</figcaption>
       </figure>
       <figure>
-        <img src="uploads/sponsor_wechat.jpg" alt="微信支付赞助收款码" loading="lazy">
+        <img src="uploads/sponsor_wechat.jpg" alt="微信支付赞助收款码" loading="lazy" onerror="picFail(this)">
         <figcaption>微信支付</figcaption>
       </figure>
     </div>
@@ -263,6 +264,10 @@
 
 <script>
 const API='api.php';
+function picFail(img){
+  if(img.dataset.retried){img.style.display='none';if(img.parentNode&&!img.parentNode.querySelector('.pic-fail')){var t=document.createElement('div');t.className='pic-fail';t.textContent='图片暂时加载不出来，稍后刷新再试';img.parentNode.insertBefore(t,img.nextSibling);}return;}
+  img.dataset.retried='1';img.src+=(img.src.indexOf('?')>=0?'&':'?')+'_r='+Date.now();
+}
 let TOKEN=localStorage.getItem('bb_token')||'';
 let ME=null;
 let curCat=0, curQ='', page=1, loading=false, noMore=false;
@@ -385,7 +390,7 @@ function renderMat(m){
   const imgUrl=API+'?action=material_view&id='+m.id+(TOKEN?'&token='+encodeURIComponent(TOKEN):'');
   el.innerHTML=
     '<span class="cat">'+(esc(m.category_name)||'其他')+'</span>'+
-    (isImg?'<img class="mat-img" src="'+imgUrl+'" loading="lazy" alt="'+esc(m.title)+'" onerror="this.classList.add(\'err\')">':'')+
+    (isImg?'<img class="mat-img" src="'+imgUrl+'" loading="lazy" alt="'+esc(m.title)+'" onerror="picFail(this)">':'')+
     '<div class="mt"></div>'+
     (m.description?'<div class="md"></div>':'' )+
     '<div class="meta">'+uploader+' · '+(m.file_type||'').toUpperCase()+' · ⬇'+(m.downloads||0)+'</div>'+

@@ -46,6 +46,7 @@
   .about .wx{color:var(--blue);font-weight:700;letter-spacing:.5px}
   .sponsor{display:flex;gap:20px;justify-content:center;align-items:flex-start;flex-wrap:wrap;margin:16px 0 12px}
   .sponsor figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:7px}
+  .pic-fail{display:inline-block;margin:8px 0;padding:8px 12px;border-radius:9px;background:#f4f9ff;border:1px dashed #c9d9f0;color:#7d8ca6;font-size:12px}
   .sponsor img{width:150px;height:auto;border-radius:10px;border:1px solid var(--line);background:#fff;
     box-shadow:0 3px 10px rgba(0,0,0,.06)}
   .sponsor figcaption{font-size:13px;color:var(--muted)}
@@ -101,11 +102,11 @@
       <p>微信号：<span class="wx">BG5EFA</span>，有任何建议可以找我。</p>
       <div class="sponsor">
         <figure>
-          <img src="uploads/sponsor_alipay.jpg" alt="支付宝赞助收款码" loading="lazy">
+          <img src="uploads/sponsor_alipay.jpg" alt="支付宝赞助收款码" loading="lazy" onerror="picFail(this)">
           <figcaption>支付宝</figcaption>
         </figure>
         <figure>
-          <img src="uploads/sponsor_wechat.jpg" alt="微信支付赞助收款码" loading="lazy">
+          <img src="uploads/sponsor_wechat.jpg" alt="微信支付赞助收款码" loading="lazy" onerror="picFail(this)">
           <figcaption>微信支付</figcaption>
         </figure>
       </div>
@@ -123,6 +124,10 @@
   <div class="foot">温州市滨海高级中学 · 校园墙</div>
 </div>
 <script>
+function picFail(img){
+  if(img.dataset.retried){img.style.display='none';if(img.parentNode&&!img.parentNode.querySelector('.pic-fail')){var t=document.createElement('div');t.className='pic-fail';t.textContent='图片暂时加载不出来，稍后刷新再试';img.parentNode.insertBefore(t,img.nextSibling);}return;}
+  img.dataset.retried='1';img.src+=(img.src.indexOf('?')>=0?'&':'?')+'_r='+Date.now();
+}
 const API = 'api.php';
 const LOG_TAGS = {fix:'修复', new:'新增', improve:'优化', notice:'公告'};
 function fmtLogDate(s){

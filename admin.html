@@ -6,7 +6,8 @@
 <title>校园墙 · 后台管理</title>
 <style>
   :root{--pink:#ff6b9d;--pink-d:#e8558a;--bg:#fff5f8;--card:#fff;
-    --text:#3a2c33;--muted:#9b8a92;--line:#ffe1ec;--green:#3ec98a;--red:#ff5a5a;}
+    --text:#3a2c33;--muted:#9b8a92;--line:#ffe1ec;--green:#3ec98a;--red:#ff5a5a;
+    --blue:#2f7bff;--blue-d:#1346c7;}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
     background:linear-gradient(160deg,#fff0f6,#ffe3ef 60%,#fff);color:var(--text);min-height:100vh}
@@ -39,6 +40,16 @@
   .filters button{background:#fff;border:1px solid var(--line);color:var(--muted);
     border-radius:20px;padding:7px 16px;font-size:13px;cursor:pointer}
   .filters button.on{background:var(--pink);color:#fff;border-color:var(--pink)}
+
+  /* 后台快捷导航：直接跳到各管理面板 */
+  .quick-nav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:10px;
+    background:var(--card);border-radius:12px;box-shadow:0 4px 14px rgba(255,107,157,.1);
+    position:sticky;top:0;z-index:20}
+  .quick-nav a{font-size:12px;text-decoration:none;color:var(--pink-d);background:#fff0f6;
+    border:1px solid var(--line);border-radius:18px;padding:6px 12px;white-space:nowrap}
+  .quick-nav a:hover{background:var(--pink);color:#fff}
+  .quick-nav a.hot{background:var(--pink);color:#fff;border-color:var(--pink);font-weight:700}
+  .panel{scroll-margin-top:70px}
 
   .post{background:var(--card);border-radius:14px;padding:14px 16px;margin:12px 0;
     box-shadow:0 4px 14px rgba(255,107,157,.1)}
@@ -127,8 +138,9 @@
   #clList .cl-t{font-size:13px;font-weight:700;margin-bottom:3px}
   #clList .cl-c{font-size:12px;color:var(--muted);line-height:1.6;white-space:pre-wrap;word-break:break-word}
   #clList .cl-meta{font-size:11px;color:var(--muted);margin-top:4px}
-  #clList .cl-edit,#clList .cl-del{border:none;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap}
-  #clList .cl-edit{background:var(--blue);color:#fff}
+  #clList .cl-edit,#clList .cl-del{border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
+  #clList .cl-edit{background:var(--blue);color:#fff;font-weight:700;box-shadow:0 2px 8px rgba(47,123,255,.3)}
+  #clList .cl-edit:hover{background:var(--blue-d)}
   #clList .cl-del{background:var(--pink-d);color:#fff}
   .mini-mask{position:fixed;inset:0;background:rgba(58,44,51,.5);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
   .mini-mask.show{display:flex}
@@ -160,6 +172,14 @@
 
   <!-- 仪表盘 -->
   <div id="dash" class="hidden">
+    <nav class="quick-nav">
+      <a href="#invitePanel">🎫 邀请码</a>
+      <a href="#userPanel">👥 用户管理</a>
+      <a href="#commentPanel">💬 评论审核</a>
+      <a href="#matPanel">📚 学习专区</a>
+      <a href="#badwordPanel">🚫 敏感词</a>
+      <a href="#changelogPanel" class="hot">📢 更新修复日志 · 编辑</a>
+    </nav>
     <div class="stats" id="stats"></div>
     <div class="filters" id="filters">
       <button data-s="" class="on">全部</button>
@@ -239,7 +259,7 @@
         <h2>📢 更新修复日志</h2>
         <button class="btn ghost" id="refreshChangelog" style="margin-left:auto">刷新</button>
       </div>
-      <p class="bw-tip">只有管理员能发布和编辑，内容展示在前台「关于 / 更新」页面。列表每条右侧的「编辑」按钮可直接修改，写清楚修复了什么问题、新增了哪些功能即可。</p>
+      <p class="bw-tip">只有管理员能发布和编辑，内容展示在前台「关于 / 更新」页面。<b>下方列表每条右侧的蓝色「✏️ 编辑」按钮</b>会弹出编辑窗口，可修改标题、类型、版本和内容；写清楚修复了什么问题、新增了哪些功能即可。</p>
       <div class="cl-form">
         <div class="cl-row">
           <input type="text" id="cl_title" placeholder="标题，如：修复图片无法上传" maxlength="150">
@@ -1000,7 +1020,7 @@ async function loadChangelogAdmin(){
       const c = document.createElement('div'); c.className = 'cl-c'; c.textContent = it.content;
       const meta = document.createElement('div'); meta.className = 'cl-meta'; meta.textContent = fmt(it.created_at);
       main.append(t, c, meta);
-      const edit = document.createElement('button'); edit.className = 'cl-edit'; edit.dataset.id = it.id; edit.dataset.act = 'edit'; edit.textContent = '编辑这条'; edit.title = '弹出编辑窗口，可修改标题、类型、版本和内容';
+      const edit = document.createElement('button'); edit.className = 'cl-edit'; edit.dataset.id = it.id; edit.dataset.act = 'edit'; edit.textContent = '✏️ 编辑'; edit.title = '弹出编辑窗口，可修改标题、类型、版本和内容';
       const del = document.createElement('button'); del.className = 'cl-del'; del.dataset.id = it.id; del.dataset.act = 'del'; del.textContent = '删除';
       row.append(main, edit, del);
       box.appendChild(row);

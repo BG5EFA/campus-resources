@@ -132,13 +132,24 @@ function consume_invite($pdo, $code)
     if ($row['used_count'] >= $row['max_uses']) return [false, '邀请码已被用完'];
     return [true, $row];
 }
+function image_max_size()
+{
+    return 10 * 1024 * 1024; // 帖子配图上限 10MB
+}
 function handle_upload($file)
 {
-    if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) return false;
-    if ($file['size'] > 2 * 1024 * 1024) return false;
-    $allowed = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_GIF => 'gif', IMAGETYPE_WEBP => 'webp'];
-    if (!function_exists('exif_imagetype') || ($type = exif_imagetype($file['tmp_name'])) === false) return false;
-    if (!isset($allowed[$type])) return false;
+    if (!is_array($file) || !isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) return false;
+    if ($file['size'] < 1 || $file['size'] > image_max_size()) return false;
+    $allowed = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_GIF => 'gif'];
+    if (defined('IMAGETYPE_WEBP')) $allowed[IMAGETYPE_WEBP] = 'webp';
+    // exif 扩展并非必需：优先 exif_imagetype，缺失时退回 getimagesize 读取真实图片头
+    $type = false;
+    if (function_exists('exif_imagetype')) $type = @exif_imagetype($file['tmp_name']);
+    if ($type === false && function_exists('getimagesize')) {
+        $info = @getimagesize($file['tmp_name']);
+        $type = is_array($info) && isset($info[2]) ? $info[2] : false;
+    }
+    if ($type === false || !isset($allowed[$type])) return false;
     $ext = $allowed[$type];
     $name = bin2hex(random_bytes(16)) . '.' . $ext;
     $dest = UPLOAD_DIR . $name;
@@ -148,8 +159,8 @@ function handle_upload($file)
 }
 function handle_material_upload($file)
 {
-    if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) return false;
-    if ($file['size'] > 20 * 1024 * 1024) return false;
+    if (!is_array($file) || !isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) return false;
+    if ($file['size'] < 1 || $file['size'] > 30 * 1024 * 1024) return false;
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     $allow = ['doc', 'docx', 'pdf', 'ppt', 'pptx', 'xls', 'xlsx', 'zip', 'rar', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4'];
     if (!in_array($ext, $allow, true)) return false;
@@ -163,6 +174,11 @@ function handle_material_upload($file)
 // ---------- 路由 ----------
 $action = $_REQUEST['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
+
+// 请求体超过 post_max_size 时 PHP 会丢弃整个 POST（$_POST/$_FILES 全空），给出明确提示
+if ($action === '' && $method === 'POST' && intval($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+    json_out(['ok' => false, 'msg' => '上传内容过大或被截断，请压缩后重试（图片 ≤10MB，资料 ≤30MB）'], 400);
+}
 
 switch ($action) {
 
@@ -209,8 +225,13 @@ switch ($action) {
         }
         $image = null;
         if (!empty($_FILES['image'])) {
-            $image = handle_upload($_FILES['image']);
-            if ($image === false) json_out(['ok' => false, 'msg' => '图片需为 jpg/png/gif/webp 且 ≤2MB'], 400);
+            $f = $_FILES['image'];
+            if (!isset($f['error']) || $f['error'] !== UPLOAD_ERR_OK) {
+                json_out(['ok' => false, 'msg' => '图片上传失败（错误码 ' . ($f['error'] ?? -1) . '），请压缩后重试'], 400);
+            }
+            if ($f['size'] > image_max_size()) json_out(['ok' => false, 'msg' => '图片不能超过 10MB，请压缩后重试'], 400);
+            $image = handle_upload($f);
+            if ($image === false) json_out(['ok' => false, 'msg' => '图片格式不支持或文件损坏，请使用 jpg/png/gif/webp'], 400);
         }
         $nickname = filter_bad_words($pdo, $nickname);
         $title = $title === null ? null : filter_bad_words($pdo, $title);
@@ -710,7 +731,7 @@ switch ($action) {
         $desc = mb_substr(trim($_POST['description'] ?? ''), 0, 1000);
         $cat = intval($_POST['category_id'] ?? 0);
         $up = handle_material_upload($_FILES['file'] ?? []);
-        if ($up === false) json_out(['ok' => false, 'msg' => '文件需为常见文档格式且 ≤20MB'], 400);
+        if ($up === false) json_out(['ok' => false, 'msg' => '文件需为常见格式且 ≤30MB'], 400);
         $title = filter_bad_words($pdo, $title);
         $desc = filter_bad_words($pdo, $desc);
         $orig = filter_bad_words($pdo, $up['orig']);
@@ -1109,7 +1130,7 @@ switch ($action) {
         $cat = intval($_POST['category_id'] ?? 0);
         if (empty($_FILES['file'])) json_out(['ok' => false, 'msg' => '请选择要上传的文件'], 400);
         $up = handle_material_upload($_FILES['file']);
-        if ($up === false) json_out(['ok' => false, 'msg' => '文件需为常见格式且 ≤20MB（支持图片/文档/压缩包等）'], 400);
+        if ($up === false) json_out(['ok' => false, 'msg' => '文件需为常见格式且 ≤30MB（支持图片/文档/压缩包等）'], 400);
         $title = filter_bad_words($pdo, $title);
         $description = filter_bad_words($pdo, $description);
         $orig = filter_bad_words($pdo, $up['orig']);

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>关于我们 · 更新日志 | 温州市滨海高级中学校园墙</title>
+<style>
+  :root{
+    --blue:#2f7bff; --blue-d:#1346c7; --cyan:#35d0ff;
+    --bg1:#eef5ff; --bg2:#dcebff; --card:#ffffff;
+    --text:#14233f; --muted:#6b7c9c; --line:#d4e3ff;
+    --glow:rgba(47,123,255,.22);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{min-height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--text);position:relative;overflow-x:hidden;min-height:100vh;padding:0 12px 70px;
+    background:linear-gradient(165deg,#eef5ff 0%,#dcebff 55%,#e9f1ff 100%)}
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:linear-gradient(rgba(47,123,255,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(47,123,255,.06) 1px,transparent 1px);
+    background-size:30px 30px;
+    -webkit-mask-image:radial-gradient(circle at 50% 0%,#000,transparent 75%);
+            mask-image:radial-gradient(circle at 50% 0%,#000,transparent 75%)}
+  .wrap{position:relative;z-index:1;max-width:760px;margin:0 auto}
+  .nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:16px 0 2px}
+  .nav a{font-size:14px;padding:7px 18px;border-radius:20px;text-decoration:none;color:var(--muted);
+    border:1px solid var(--line);background:rgba(255,255,255,.7)}
+  .nav a.active{color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan));border-color:transparent;box-shadow:0 4px 12px var(--glow)}
+  header{text-align:center;padding:10px 0 4px;position:relative}
+  .badge{width:84px;height:84px;filter:drop-shadow(0 6px 16px var(--glow))}
+  .title{font-size:24px;font-weight:800;letter-spacing:.5px;
+    background:linear-gradient(90deg,var(--blue-d),var(--blue),var(--cyan));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:13px;margin-top:3px}
+  .mascot{position:absolute;right:4px;top:50px;width:48px;height:48px;animation:bob 3.2s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
+
+  .info-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px;margin:18px 0 6px;align-items:start}
+  @media(max-width:700px){.info-grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:20px 18px;box-shadow:0 6px 20px var(--glow)}
+  .card h2{font-size:17px;color:var(--blue-d);margin-bottom:10px;font-weight:700}
+  .card p{font-size:14px;line-height:1.65;color:var(--text)}
+  .about{text-align:center}
+  .about .wx{color:var(--blue);font-weight:700;letter-spacing:.5px}
+  .sponsor{display:flex;gap:20px;justify-content:center;align-items:flex-start;flex-wrap:wrap;margin:16px 0 12px}
+  .sponsor figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:7px}
+  .sponsor img{width:150px;height:auto;border-radius:10px;border:1px solid var(--line);background:#fff;
+    box-shadow:0 3px 10px rgba(0,0,0,.06)}
+  .sponsor figcaption{font-size:13px;color:var(--muted)}
+  .about .thanks{margin-top:6px;color:var(--blue-d);font-size:15px;font-weight:600}
+  .tip{font-size:12px;color:var(--muted);line-height:1.6;margin:-4px 0 10px}
+  .log-list{max-height:520px;overflow-y:auto;padding-right:4px}
+  .log-item{border-left:3px solid var(--blue);padding:2px 0 12px 12px;margin-bottom:12px}
+  .log-item .lg-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .log-tag{flex-shrink:0;font-size:11px;padding:2px 8px;border-radius:10px;background:#e8f1ff;color:var(--blue-d);font-weight:700}
+  .log-tag.fix{background:#ffeded;color:#c0453f}
+  .log-tag.new{background:#e7f7ed;color:#218a4d}
+  .log-tag.improve{background:#fff4e0;color:#b57600}
+  .log-title{font-size:14px;font-weight:700;color:var(--text)}
+  .log-date{font-size:12px;color:var(--muted);margin-left:auto;white-space:nowrap}
+  .log-ver{font-size:11px;color:var(--blue-d);background:#f0f6ff;border-radius:8px;padding:1px 6px}
+  .log-content{font-size:13px;line-height:1.7;color:var(--muted);white-space:pre-wrap;word-break:break-word;margin-top:6px}
+  .log-empty{text-align:center;color:var(--muted);font-size:13px;padding:20px 0}
+  .foot{text-align:center;margin-top:24px;font-size:12px;color:var(--muted)}
+  .foot a{color:var(--blue);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="index.html">校园墙</a>
+    <a href="study.html">学习专区</a>
+    <a href="info.html" class="active">关于 / 更新</a>
+  </nav>
+
+  <header>
+    <img class="badge" src="/badge.png" alt="温州市滨海高级中学校徽" onerror="this.style.display='none'">
+    <h1 class="title">关于我们 · 更新日志</h1>
+    <p class="sub">站点信息、联系方式，以及每一次修复与新增</p>
+    <svg class="mascot" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-label="小瓜">
+      <ellipse cx="30" cy="12" rx="6" ry="3" fill="#34c77b" transform="rotate(-25 30 12)"/>
+      <path d="M30 6 q5 -5 9 -3" stroke="#34c77b" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <circle cx="30" cy="34" r="22" fill="#5aa0ff"/>
+      <circle cx="30" cy="34" r="22" fill="none" stroke="#2f7bff" stroke-width="1.5" opacity=".5"/>
+      <circle cx="22" cy="32" r="5" fill="#fff"/>
+      <circle cx="38" cy="32" r="5" fill="#fff"/>
+      <circle cx="23" cy="33" r="2.4" fill="#14233f"/>
+      <circle cx="39" cy="33" r="2.4" fill="#14233f"/>
+      <circle cx="16" cy="38" r="3" fill="#9fd0ff" opacity=".8"/>
+      <circle cx="44" cy="38" r="3" fill="#9fd0ff" opacity=".8"/>
+      <path d="M24 42 q6 6 12 0" stroke="#14233f" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <text x="30" y="54" text-anchor="middle" font-size="9" font-weight="700" fill="#1346c7">小瓜</text>
+    </svg>
+  </header>
+
+  <div class="info-grid">
+    <section class="card about">
+      <h2>关于我们</h2>
+      <p>微信号：<span class="wx">BG5EFA</span>，有任何建议可以找我。</p>
+      <div class="sponsor">
+        <figure>
+          <img src="uploads/sponsor_alipay.jpg" alt="支付宝赞助收款码" loading="lazy">
+          <figcaption>支付宝</figcaption>
+        </figure>
+        <figure>
+          <img src="uploads/sponsor_wechat.jpg" alt="微信支付赞助收款码" loading="lazy">
+          <figcaption>微信支付</figcaption>
+        </figure>
+      </div>
+      <p class="thanks">很高兴您的赞助！</p>
+      <p style="margin-top:14px;font-size:13px"><a href="#" onclick="showCampusNotice();return false;" style="color:var(--blue);text-decoration:none">查看内容规范公告</a></p>
+    </section>
+
+    <section class="card">
+      <h2>更新修复日志</h2>
+      <p class="tip">仅管理员发布，记录站点修复了哪些问题、新增了哪些功能。</p>
+      <div class="log-list" id="changelogList"><div class="log-empty">加载中…</div></div>
+    </section>
+  </div>
+
+  <div class="foot">温州市滨海高级中学 · 校园墙</div>
+</div>
+<script>
+const API = 'api.php';
+const LOG_TAGS = {fix:'修复', new:'新增', improve:'优化', notice:'公告'};
+function fmtLogDate(s){
+  if(!s) return '';
+  const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  return m ? m[1]+'.'+m[2]+'.'+m[3]+' '+m[4]+':'+m[5] : String(s);
+}
+async function loadChangelog(){
+  const box=document.getElementById('changelogList');
+  if(!box) return;
+  try{
+    const r=await fetch(API+'?action=changelog_list&limit=50');
+    const d=await r.json();
+    if(!d.ok || !d.list || !d.list.length){ box.innerHTML='<div class="log-empty">暂无更新记录</div>'; return; }
+    box.textContent='';
+    d.list.forEach(it=>{
+      const item=document.createElement('div'); item.className='log-item';
+      const top=document.createElement('div'); top.className='lg-top';
+      const tag=document.createElement('span'); tag.className='log-tag '+(LOG_TAGS[it.kind]?it.kind:'fix'); tag.textContent=LOG_TAGS[it.kind]||'更新';
+      const title=document.createElement('span'); title.className='log-title'; title.textContent=it.title;
+      top.appendChild(tag); top.appendChild(title);
+      if(it.version){ const v=document.createElement('span'); v.className='log-ver'; v.textContent=it.version; top.appendChild(v); }
+      const date=document.createElement('span'); date.className='log-date'; date.textContent=fmtLogDate(it.created_at);
+      top.appendChild(date);
+      const body=document.createElement('div'); body.className='log-content'; body.textContent=it.content;
+      item.appendChild(top); item.appendChild(body);
+      box.appendChild(item);
+    });
+  }catch(_){ box.innerHTML='<div class="log-empty">加载失败，请刷新重试</div>'; }
+}
+loadChangelog();
+</script>
+<script src="notice.js"></script>
+</body>
+</html>

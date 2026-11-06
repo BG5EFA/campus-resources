@@ -239,7 +239,7 @@
         <h2>📢 更新修复日志</h2>
         <button class="btn ghost" id="refreshChangelog" style="margin-left:auto">刷新</button>
       </div>
-      <p class="bw-tip">只有管理员能发布，前台首页「关于我们」旁边会展示给大家看。写清楚修复了什么问题、新增了哪些功能即可。</p>
+      <p class="bw-tip">只有管理员能发布和编辑，内容展示在前台「关于 / 更新」页面。列表每条右侧的「编辑」按钮可直接修改，写清楚修复了什么问题、新增了哪些功能即可。</p>
       <div class="cl-form">
         <div class="cl-row">
           <input type="text" id="cl_title" placeholder="标题，如：修复图片无法上传" maxlength="150">
@@ -300,6 +300,30 @@
     <div class="m-acts">
       <button class="m-cancel" data-close-mini>取消</button>
       <button class="m-ok" id="eu_submit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑更新日志弹窗 -->
+<div class="mini-mask" id="editClMask">
+  <div class="box" style="max-width:420px">
+    <h3>编辑更新日志</h3>
+    <label>标题</label>
+    <input type="text" id="ecl_title" maxlength="150" autocomplete="off">
+    <label>类型</label>
+    <select id="ecl_kind">
+      <option value="fix">修复</option>
+      <option value="new">新增</option>
+      <option value="improve">优化</option>
+      <option value="notice">公告</option>
+    </select>
+    <label>版本号（可选）</label>
+    <input type="text" id="ecl_version" maxlength="50" autocomplete="off">
+    <label>内容</label>
+    <textarea id="ecl_content" rows="5" maxlength="2000"></textarea>
+    <div class="m-acts">
+      <button class="m-cancel" data-close-mini>取消</button>
+      <button class="m-ok" id="ecl_submit">保存修改</button>
     </div>
   </div>
 </div>
@@ -976,7 +1000,7 @@ async function loadChangelogAdmin(){
       const c = document.createElement('div'); c.className = 'cl-c'; c.textContent = it.content;
       const meta = document.createElement('div'); meta.className = 'cl-meta'; meta.textContent = fmt(it.created_at);
       main.append(t, c, meta);
-      const edit = document.createElement('button'); edit.className = 'cl-edit'; edit.dataset.id = it.id; edit.dataset.act = 'edit'; edit.textContent = '编辑';
+      const edit = document.createElement('button'); edit.className = 'cl-edit'; edit.dataset.id = it.id; edit.dataset.act = 'edit'; edit.textContent = '编辑这条'; edit.title = '弹出编辑窗口，可修改标题、类型、版本和内容';
       const del = document.createElement('button'); del.className = 'cl-del'; del.dataset.id = it.id; del.dataset.act = 'del'; del.textContent = '删除';
       row.append(main, edit, del);
       box.appendChild(row);
@@ -1005,20 +1029,44 @@ document.getElementById('cl_submit').addEventListener('click', async () => {
   finally{ btn.disabled = false; }
 });
 document.getElementById('cl_cancel').addEventListener('click', clReset);
+
+// 更新日志：列表「编辑这条」打开独立弹窗，不再回填顶部表单
+let eclEditId = 0;
+function openClEdit(it){
+  eclEditId = it.id;
+  document.getElementById('ecl_title').value = it.title || '';
+  document.getElementById('ecl_content').value = it.content || '';
+  document.getElementById('ecl_version').value = it.version || '';
+  document.getElementById('ecl_kind').value = it.kind || 'fix';
+  document.getElementById('editClMask').classList.add('show');
+  document.getElementById('ecl_title').focus();
+}
+document.getElementById('ecl_submit').addEventListener('click', async () => {
+  const title = document.getElementById('ecl_title').value.trim();
+  const content = document.getElementById('ecl_content').value.trim();
+  if(title.length < 2){ toast('标题至少 2 个字'); return; }
+  if(!content){ toast('请填写内容'); return; }
+  const fd = new FormData();
+  fd.append('action','admin_changelog_edit'); fd.append('token',token); fd.append('id',eclEditId);
+  fd.append('title',title); fd.append('content',content);
+  fd.append('kind',document.getElementById('ecl_kind').value);
+  fd.append('version',document.getElementById('ecl_version').value.trim());
+  const btn = document.getElementById('ecl_submit'); btn.disabled = true;
+  try{
+    const r = await fetch(API,{method:'POST',headers:authHeaders(),body:fd});
+    const d = await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg||'保存失败'); return; }
+    toast('已保存修改'); closeMini('editClMask'); loadChangelogAdmin();
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled = false; }
+});
 document.getElementById('refreshChangelog').addEventListener('click', loadChangelogAdmin);
 document.getElementById('clList').addEventListener('click', async e => {
   const b = e.target.closest('button'); if(!b) return;
   const id = parseInt(b.dataset.id, 10); if(!id) return;
   if(b.dataset.act === 'edit'){
     const it = clCache.find(x => x.id == id); if(!it) return;
-    clEditId = id;
-    document.getElementById('cl_title').value = it.title;
-    document.getElementById('cl_content').value = it.content;
-    document.getElementById('cl_version').value = it.version || '';
-    document.getElementById('cl_kind').value = it.kind || 'fix';
-    document.getElementById('cl_submit').textContent = '保存修改';
-    document.getElementById('cl_cancel').classList.remove('hidden');
-    document.getElementById('cl_title').focus();
+    openClEdit(it);
     return;
   }
   if(b.dataset.act === 'del'){

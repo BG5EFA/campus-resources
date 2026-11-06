@@ -70,7 +70,7 @@
   <div class="topbar" id="authArea"><button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button></div>
   <nav class="nav">
     <a href="index.html">校园墙</a><a href="treehole.html">树洞</a>
-    <a href="forum.html">论坛</a><a href="qa.html">问答</a><a href="study.html">学习专区</a><a href="me.html" class="active">我的</a>
+    <a href="forum.html">论坛</a><a href="qa.html">问答</a><a href="study.html">学习专区</a><a href="me.html" class="active">我的</a><a href="info.html">关于 / 更新</a>
   </nav>
   <header><img class="badge" src="/badge.png" alt="校徽" onerror="this.style.display='none'">
     <h1 class="title">个人中心</h1><p class="sub">我的内容 · 消息通知 · 账号设置</p></header>
@@ -176,5 +176,6 @@ document.getElementById('logoutBtn2').onclick=logout;
 async function init(){await refreshUser();if(!ME){document.getElementById('notLogin').style.display='flex';return;}document.getElementById('profileBox').style.display='block';document.getElementById('bigAv').textContent=(ME.nickname||ME.username||'?')[0].toUpperCase();document.getElementById('pName').textContent=ME.nickname||ME.username;document.getElementById('pUid').textContent='@'+ME.username;loadMy();}
 init();
 </script>
+<script src="notice.js"></script>
 </body>
 </html>

@@ -107,6 +107,9 @@
     max-width:100%;max-width:min(100%,260px);max-height:200px;
     width:auto;height:auto;object-fit:contain;background:#f4f9ff;cursor:zoom-in}
   @media(max-width:600px){ .post .pic{max-width:min(100%,200px);max-height:170px} }
+  /* 图片加载失败时的友好占位，避免出现裂图图标 */
+  .pic-fail{display:inline-block;margin:8px 0;padding:8px 12px;border-radius:9px;
+    background:#f4f9ff;border:1px dashed #c9d9f0;color:#7d8ca6;font-size:12px}
   /* 点击看原图 */
   .img-mask{position:fixed;inset:0;background:rgba(12,25,45,.88);display:none;
     align-items:center;justify-content:center;z-index:120;padding:16px;cursor:zoom-out}
@@ -232,7 +235,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- 配图原图查看 -->
-<div class="img-mask" id="imgMask"><img id="imgMaskPic" src="" alt="原图"></div>
+<div class="img-mask" id="imgMask"><img id="imgMaskPic" alt="原图"></div>
 
 <!-- 登录弹窗 -->
 <div class="mask" id="loginMask">
@@ -383,6 +386,22 @@ async function loadPosts(reset){
   finally{ loading = false; }
 }
 
+// 配图加载失败：带随机参数自动重试一次，仍失败则显示友好占位（避免裂图图标）
+function picFail(img){
+  if(img.dataset.retried){
+    img.style.display = 'none';
+    if(img.parentNode && !img.parentNode.querySelector('.pic-fail')){
+      const tip = document.createElement('div');
+      tip.className = 'pic-fail';
+      tip.textContent = '图片暂时加载不出来，稍后刷新再试';
+      img.parentNode.insertBefore(tip, img.nextSibling);
+    }
+    return;
+  }
+  img.dataset.retried = '1';
+  img.src += (img.src.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now();
+}
+
 // 配图：点击看原图（缩略显示后仍可放大查看）
 const imgMask = document.getElementById('imgMask');
 function openPic(src){
@@ -401,7 +420,7 @@ function renderPost(p){
           '<div><div class="name"></div><div class="time"></div></div></div>';
   html += '<div class="content"></div>';
   const img = safeImg(p.image);
-  if(img) html += '<img class="pic" src="'+img+'" alt="配图" title="点击查看原图">';
+  if(img) html += '<img class="pic" src="'+img+'" alt="配图" title="点击查看原图" onerror="picFail(this)">';
   html += '<div class="acts">'+
           '<button class="like" data-id="'+p.id+'">❤ <span class="cnt">'+(p.likes||0)+'</span></button>'+
           '<button class="cmt-toggle" data-id="'+p.id+'">💬 评论 <span>'+(p.comment_count||0)+'</span></button>'+

@@ -102,7 +102,17 @@
   .post .name{font-weight:700;font-size:15px}
   .post .time{color:var(--muted);font-size:12px}
   .post .content{margin:10px 0;font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
-  .post .pic{margin:8px 0;border-radius:12px;max-width:100%;cursor:pointer;display:block}
+  /* 配图统一缩略显示：横屏按宽度收、竖屏按高度收，点开可看原图 */
+  .post .pic{display:block;margin:8px 0;border-radius:10px;
+    max-width:100%;max-width:min(100%,260px);max-height:200px;
+    width:auto;height:auto;object-fit:contain;background:#f4f9ff;cursor:zoom-in}
+  @media(max-width:600px){ .post .pic{max-width:min(100%,200px);max-height:170px} }
+  /* 点击看原图 */
+  .img-mask{position:fixed;inset:0;background:rgba(12,25,45,.88);display:none;
+    align-items:center;justify-content:center;z-index:120;padding:16px;cursor:zoom-out}
+  .img-mask.show{display:flex}
+  .img-mask img{max-width:94vw;max-height:90vh;object-fit:contain;border-radius:10px;
+    box-shadow:0 12px 40px rgba(0,0,0,.4)}
   .post .acts{display:flex;gap:18px;align-items:center;color:var(--muted);font-size:14px;
     border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
   .post .acts button{background:none;border:none;color:var(--muted);cursor:pointer;
@@ -220,6 +230,9 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- 配图原图查看 -->
+<div class="img-mask" id="imgMask"><img id="imgMaskPic" src="" alt="原图"></div>
 
 <!-- 登录弹窗 -->
 <div class="mask" id="loginMask">
@@ -370,6 +383,15 @@ async function loadPosts(reset){
   finally{ loading = false; }
 }
 
+// 配图：点击看原图（缩略显示后仍可放大查看）
+const imgMask = document.getElementById('imgMask');
+function openPic(src){
+  document.getElementById('imgMaskPic').src = src;
+  imgMask.classList.add('show');
+}
+imgMask.addEventListener('click', () => imgMask.classList.remove('show'));
+document.addEventListener('keydown', e => { if(e.key === 'Escape') imgMask.classList.remove('show'); });
+
 function renderPost(p){
   const el = document.createElement('div');
   el.className = 'post';
@@ -379,7 +401,7 @@ function renderPost(p){
           '<div><div class="name"></div><div class="time"></div></div></div>';
   html += '<div class="content"></div>';
   const img = safeImg(p.image);
-  if(img) html += '<img class="pic" src="'+img+'" alt="配图">';
+  if(img) html += '<img class="pic" src="'+img+'" alt="配图" title="点击查看原图">';
   html += '<div class="acts">'+
           '<button class="like" data-id="'+p.id+'">❤ <span class="cnt">'+(p.likes||0)+'</span></button>'+
           '<button class="cmt-toggle" data-id="'+p.id+'">💬 评论 <span>'+(p.comment_count||0)+'</span></button>'+
@@ -389,6 +411,8 @@ function renderPost(p){
           '<div class="cmt-form"><input type="text" placeholder="说点什么…" maxlength="200">'+
           '<button>发送</button></div></div>';
   el.innerHTML = html;
+  const pic = el.querySelector('.pic');
+  if(pic) pic.addEventListener('click', () => openPic(pic.src));
   el.querySelector('.name').textContent = escName(p.nickname);
   el.querySelector('.time').textContent = fmtTime(p.created_at);
   el.querySelector('.content').textContent = p.content;

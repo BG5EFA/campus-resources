@@ -132,6 +132,125 @@ function consume_invite($pdo, $code)
     if ($row['used_count'] >= $row['max_uses']) return [false, '邀请码已被用完'];
     return [true, $row];
 }
+// ---------- 上传图片自动压缩：只压图片，尽量不影响画质 ----------
+// 等比缩到最长边 2000px（资料图 2400px），JPEG 质量 86 / WebP 88 / PNG 无损重编码。
+// 只有体积确实变小才替换；GIF 动图、文档类文件、解码失败一律原样保留，绝不影响上传。
+function img_compress_cfg()
+{
+    return ['edge' => 2000, 'jpeg' => 86, 'webp' => 88, 'png' => 6,
+            'min_bytes' => 60 * 1024, 'max_pixels' => 30000000];
+}
+
+// 服务器没装 exif 扩展，这里直接读 JPEG 的 EXIF 方向标记（1~8），避免手机竖拍照片压完躺倒
+function img_jpeg_orientation($path)
+{
+    $buf = @file_get_contents($path, false, null, 0, 65536);
+    if ($buf === false || ($p = strpos($buf, "Exif\0\0")) === false) return 1;
+    $t = $p + 6;
+    $le = substr($buf, $t, 2) === 'II';
+    if (!$le && substr($buf, $t, 2) !== 'MM') return 1;
+    $u16 = function ($o) use ($buf, $le) {
+        return $o + 2 <= strlen($buf) ? unpack($le ? 'v' : 'n', substr($buf, $o, 2))[1] : 0;
+    };
+    $u32 = function ($o) use ($buf, $le) {
+        return $o + 4 <= strlen($buf) ? unpack($le ? 'V' : 'N', substr($buf, $o, 4))[1] : 0;
+    };
+    $ifd = $t + $u32($t + 4);
+    $n = min($u16($ifd), 80);
+    for ($i = 0; $i < $n; $i++) {
+        $e = $ifd + 2 + $i * 12;
+        if ($e + 12 > strlen($buf)) break;
+        if ($u16($e) === 0x0112) {
+            $v = $u16($e + 8);
+            return ($v >= 1 && $v <= 8) ? $v : 1;
+        }
+    }
+    return 1;
+}
+
+function img_apply_orientation($im, $ori)
+{
+    if ($ori < 2 || $ori > 8) return $im;
+    $rot = function ($im, $deg) {
+        $new = @imagerotate($im, $deg, 0);
+        if ($new) { imagedestroy($im); return $new; }
+        return $im;
+    };
+    switch ($ori) {
+        case 2: imageflip($im, IMG_FLIP_HORIZONTAL); break;
+        case 3: $im = $rot($im, 180); break;
+        case 4: imageflip($im, IMG_FLIP_VERTICAL); break;
+        case 5: $im = $rot($im, -90); imageflip($im, IMG_FLIP_HORIZONTAL); break;
+        case 6: $im = $rot($im, -90); break;
+        case 7: $im = $rot($im, 90); imageflip($im, IMG_FLIP_HORIZONTAL); break;
+        case 8: $im = $rot($im, 90); break;
+    }
+    return $im;
+}
+
+function img_compress($path, $edge = 0)
+{
+    if (!is_file($path) || !function_exists('imagecreatetruecolor')) return false;
+    $cfg = img_compress_cfg();
+    if ($edge > 0) $cfg['edge'] = $edge;
+    $before = @filesize($path);
+    if (!$before || $before < $cfg['min_bytes']) return false;
+    $info = @getimagesize($path);
+    if (!is_array($info) || !isset($info[2])) return false;
+    $type = $info[2];
+    if (!in_array($type, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) return false;
+    if ($type === IMAGETYPE_WEBP && !function_exists('imagecreatefromwebp')) return false;
+    if ($info[0] * $info[1] > $cfg['max_pixels']) return false; // 超大图跳过，避免内存溢出
+
+    $tmp = $path . '.cmp_' . substr(md5($path . microtime(true) . mt_rand()), 0, 10);
+    $im = null;
+    try {
+        if ($type === IMAGETYPE_JPEG) $im = @imagecreatefromjpeg($path);
+        elseif ($type === IMAGETYPE_PNG) $im = @imagecreatefrompng($path);
+        else $im = @imagecreatefromwebp($path);
+        if (!$im) throw new Exception('decode');
+
+        $w = imagesx($im); $h = imagesy($im);
+        if (max($w, $h) > $cfg['edge']) {
+            $r = $cfg['edge'] / max($w, $h);
+            $nw = max(1, (int) round($w * $r));
+            $nh = max(1, (int) round($h * $r));
+            $small = imagecreatetruecolor($nw, $nh);
+            if (!$small) throw new Exception('canvas');
+            if ($type !== IMAGETYPE_JPEG) { imagealphablending($small, false); imagesavealpha($small, true); }
+            if (!imagecopyresampled($small, $im, 0, 0, 0, 0, $nw, $nh, $w, $h)) throw new Exception('resize');
+            imagedestroy($im);
+            $im = $small;
+        }
+        if ($type === IMAGETYPE_JPEG) $im = img_apply_orientation($im, img_jpeg_orientation($path));
+
+        if ($type === IMAGETYPE_JPEG) {
+            @imageinterlace($im, 1); // 渐进式 JPEG：体积更小，画质不变
+            $ok = @imagejpeg($im, $tmp, $cfg['jpeg']);
+        } elseif ($type === IMAGETYPE_PNG) {
+            imagealphablending($im, false); imagesavealpha($im, true);
+            $ok = @imagepng($im, $tmp, $cfg['png']);
+        } else {
+            imagealphablending($im, false); imagesavealpha($im, true);
+            $ok = @imagewebp($im, $tmp, $cfg['webp']);
+        }
+        imagedestroy($im);
+        $im = null;
+        if (!$ok || !is_file($tmp) || filesize($tmp) < 1) throw new Exception('save');
+        $after = filesize($tmp);
+        if ($after >= $before * 0.97) { @unlink($tmp); return false; } // 省不到 3% 就别动原图
+        if (!@rename($tmp, $path)) throw new Exception('replace');
+        @chmod($path, 0644);
+        @error_log('[img-compress] ' . basename($path) . " {$w}x{$h} {$before}->{$after}");
+        return true;
+    } catch (Throwable $e) {
+        if ($im) @imagedestroy($im);
+        @unlink($tmp);
+        @error_log('[img-compress] skip ' . basename($path) . ': ' . $e->getMessage());
+        return false;
+    }
+}
+
 function image_max_size()
 {
     return 10 * 1024 * 1024; // 帖子配图上限 10MB
@@ -155,6 +274,7 @@ function handle_upload($file)
     $dest = UPLOAD_DIR . $name;
     if (!is_dir(UPLOAD_DIR)) @mkdir(UPLOAD_DIR, 0755, true);
     if (!move_uploaded_file($file['tmp_name'], $dest)) return false;
+    img_compress($dest); // 存盘后自动压缩一轮，失败不影响上传
     return $name;
 }
 function handle_material_upload($file)
@@ -168,7 +288,10 @@ function handle_material_upload($file)
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
     $stored = bin2hex(random_bytes(16)) . '.' . $ext;
     if (!move_uploaded_file($file['tmp_name'], $dir . $stored)) return false;
-    return ['stored' => $stored, 'orig' => $file['name'], 'size' => $file['size'], 'ext' => $ext];
+    // 只对图片压缩；文档 / PDF / 压缩包 / 视频保持原样，避免二次压缩损坏
+    if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) img_compress($dir . $stored, 2400);
+    return ['stored' => $stored, 'orig' => $file['name'],
+            'size' => @filesize($dir . $stored) ?: $file['size'], 'ext' => $ext];
 }
 
 // ---------- 路由 ----------

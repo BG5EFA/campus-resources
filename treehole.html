@@ -41,7 +41,13 @@
   .post .name{font-weight:700;font-size:14px}
   .post .time{color:var(--muted);font-size:12px}
   .post .content{margin:10px 0;font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
-  .post .pic{margin:8px 0;border-radius:12px;max-width:100%}
+  .post .pic{margin:8px 0;border-radius:10px;max-width:100%;max-width:min(100%,240px);max-height:190px;
+    width:auto;height:auto;object-fit:contain;display:block;background:#f4f9ff;cursor:zoom-in}
+  @media(max-width:600px){ .post .pic{max-width:min(100%,190px);max-height:160px} }
+  .img-mask{position:fixed;inset:0;background:rgba(12,25,45,.88);display:none;
+    align-items:center;justify-content:center;z-index:120;padding:16px;cursor:zoom-out}
+  .img-mask.show{display:flex}
+  .img-mask img{max-width:94vw;max-height:90vh;object-fit:contain;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
   .post .acts{display:flex;gap:18px;color:var(--muted);font-size:14px;border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
   .post .acts button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;display:flex;align-items:center;gap:5px}
   .post .acts .like.on{color:var(--blue-d);font-weight:600}
@@ -95,6 +101,7 @@
   </section>
 
   <div class="wall" id="wall"></div>
+<div class="img-mask" id="imgMask"><img id="imgMaskPic" src="" alt="原图"></div>
   <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
   <div class="toast" id="toast"></div>
 </div>
@@ -146,6 +153,10 @@ imgInput.onchange=()=>{if(imgInput.files[0]){};};
 document.getElementById('submitBtn').onclick=async()=>{const content=document.getElementById('content').value.trim();if(!content){toast('内容不能为空');return;}const btn=document.getElementById('submitBtn');btn.disabled=true;btn.textContent='发布中…';const fd=new FormData();fd.append('action','create');fd.append('board','1');fd.append('content',content);fd.append('anonymous','1');if(TOKEN)fd.append('token',TOKEN);if(imgInput.files[0])fd.append('image',imgInput.files[0]);try{const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast('发布成功，等待审核 ❤');document.getElementById('content').value='';imgInput.value='';loadPosts(true);}else toast(d.msg);}catch(_){toast('网络错误');}finally{btn.disabled=false;btn.textContent='匿名发布';}};
 document.getElementById('moreBtn').onclick=()=>loadPosts(false);
 refreshUser();loadPosts(true);
+const imgMask=document.getElementById('imgMask');
+document.getElementById('wall').addEventListener('click',e=>{const pic=e.target.closest('.pic');if(!pic)return;document.getElementById('imgMaskPic').src=pic.src;imgMask.classList.add('show');});
+imgMask.addEventListener('click',()=>imgMask.classList.remove('show'));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')imgMask.classList.remove('show');});
 </script>
 <script src="notice.js"></script>
 </body>

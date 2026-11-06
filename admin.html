@@ -41,15 +41,38 @@
     border-radius:20px;padding:7px 16px;font-size:13px;cursor:pointer}
   .filters button.on{background:var(--pink);color:#fff;border-color:var(--pink)}
 
-  /* 后台快捷导航：直接跳到各管理面板 */
-  .quick-nav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:10px;
+  /* 后台模块标签：点击切换，一次只看一个模块 */
+  .mod-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:10px;
     background:var(--card);border-radius:12px;box-shadow:0 4px 14px rgba(255,107,157,.1);
     position:sticky;top:0;z-index:20}
-  .quick-nav a{font-size:12px;text-decoration:none;color:var(--pink-d);background:#fff0f6;
-    border:1px solid var(--line);border-radius:18px;padding:6px 12px;white-space:nowrap}
-  .quick-nav a:hover{background:var(--pink);color:#fff}
-  .quick-nav a.hot{background:var(--pink);color:#fff;border-color:var(--pink);font-weight:700}
+  .mod-tabs button{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--pink-d);
+    background:#fff0f6;border:1px solid var(--line);border-radius:20px;padding:7px 13px;
+    cursor:pointer;white-space:nowrap;font-family:inherit}
+  .mod-tabs button:hover{background:#ffe3ef}
+  .mod-tabs button.on{background:var(--pink);color:#fff;border-color:var(--pink);font-weight:700}
+  .mod-tabs button.on:hover{background:var(--pink-d)}
+  .tab-badge{display:inline-block;min-width:19px;padding:0 5px;line-height:18px;border-radius:9px;
+    background:#fff;color:var(--pink-d);font-size:11px;font-weight:700;text-align:center}
+  .tab-badge.zero{background:#f3eef0;color:var(--muted)}
+  .tab-badge.alert,.mod-tabs button.on .tab-badge.alert{background:#ff4d4f;color:#fff}
+  .mod-title{font-size:17px;color:var(--pink-d);margin:16px 0 10px}
   .panel{scroll-margin-top:70px}
+  .cnt{display:inline-block;background:#fff0f6;color:var(--pink-d);border-radius:10px;
+    padding:1px 8px;font-size:12px;margin-left:6px;vertical-align:2px}
+  .pending-sum{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+  .ps-card{flex:1;min-width:110px;background:#fff0f6;border:1px solid var(--line);border-radius:12px;
+    padding:12px 8px;text-align:center;cursor:pointer;transition:.15s}
+  .ps-card:hover{background:#ffe3ef;transform:translateY(-2px)}
+  .ps-card b{display:block;font-size:24px;color:var(--pink-d);line-height:1.3}
+  .ps-card span{font-size:12px;color:var(--muted)}
+  .ps-card.zero{opacity:.6}
+  .pend-empty{text-align:center;color:var(--muted);padding:22px 0;font-size:13px}
+  .pend-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .pend-row .pr-main{flex:1;min-width:150px}
+  .pend-row .pr-t{font-size:13px;font-weight:700;margin-bottom:3px}
+  .pend-row .pr-s{font-size:11px;color:var(--muted)}
+  .pend-row button{border:none;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;color:#fff}
 
   .post{background:var(--card);border-radius:14px;padding:14px 16px;margin:12px 0;
     box-shadow:0 4px 14px rgba(255,107,157,.1)}
@@ -172,23 +195,60 @@
 
   <!-- 仪表盘 -->
   <div id="dash" class="hidden">
-    <nav class="quick-nav">
-      <a href="#invitePanel">🎫 邀请码</a>
-      <a href="#userPanel">👥 用户管理</a>
-      <a href="#commentPanel">💬 评论审核</a>
-      <a href="#matPanel">📚 学习专区</a>
-      <a href="#badwordPanel">🚫 敏感词</a>
-      <a href="#changelogPanel" class="hot">📢 更新修复日志 · 编辑</a>
+    <nav class="mod-tabs" id="modTabs">
+      <button data-tab="pending" class="on">🔴 待处理 <span class="tab-badge alert" id="badgePending">0</span></button>
+      <button data-tab="posts">📝 发布内容 <span class="tab-badge zero" id="badgePosts">0</span></button>
+      <button data-tab="comments">💬 评论审核 <span class="tab-badge zero" id="badgeComments">0</span></button>
+      <button data-tab="materials">📚 学习专区 <span class="tab-badge zero" id="badgeMats">0</span></button>
+      <button data-tab="users">👥 用户管理</button>
+      <button data-tab="invites">🎫 邀请码</button>
+      <button data-tab="badwords">🚫 敏感词</button>
+      <button data-tab="changelog">📢 更新修复日志</button>
     </nav>
     <div class="stats" id="stats"></div>
-    <div class="filters" id="filters">
+
+    <!-- ===== 模块：待处理中心（默认打开） ===== -->
+    <section data-mod="pending">
+      <div class="panel">
+        <div class="up-head">
+          <h2>🔴 待处理中心</h2>
+          <button class="btn ghost" id="refreshPending" style="margin-left:auto">刷新</button>
+        </div>
+        <p class="bw-tip">新发布的帖子、评论和学习资料都要先审核才会公开。下面直接列出全部待审核内容，可就地通过或拒绝，处理完会自动从列表消失。</p>
+        <div class="pending-sum" id="pendingSum"></div>
+      </div>
+      <div class="panel">
+        <div class="up-head">
+          <h2>📝 待审核发布内容 <span class="cnt" id="pendPostCount">0</span></h2>
+          <button class="btn ghost" data-go="posts" style="margin-left:auto">查看全部 →</button>
+        </div>
+        <div id="pendingPosts"></div>
+      </div>
+      <div class="panel">
+        <div class="up-head">
+          <h2>💬 待审核评论 <span class="cnt" id="pendCmtCount">0</span></h2>
+          <button class="btn ghost" data-go="comments" style="margin-left:auto">查看全部 →</button>
+        </div>
+        <div id="pendingComments"></div>
+      </div>
+      <div class="panel">
+        <div class="up-head">
+          <h2>📚 待审核资料 <span class="cnt" id="pendMatCount">0</span></h2>
+          <button class="btn ghost" data-go="materials" style="margin-left:auto">去处理 →</button>
+        </div>
+        <div id="pendingMats"></div>
+      </div>
+    </section>
+
+    <h2 class="mod-title hidden" data-mod="posts">📝 发布内容审核</h2>
+    <div class="filters hidden" id="filters" data-mod="posts">
       <button data-s="" class="on">全部</button>
       <button data-s="0">待审核</button>
       <button data-s="1">已通过</button>
       <button data-s="2">已拒绝</button>
     </div>
 
-    <div class="panel" id="invitePanel">
+    <div class="panel hidden" id="invitePanel" data-mod="invites">
       <h2>🎫 邀请码管理</h2>
       <div class="inv-form">
         <label>生成数量<input type="number" id="invCount" value="1" min="1" max="50"></label>
@@ -199,7 +259,7 @@
       <div class="inv-list" id="inviteList"></div>
     </div>
 
-    <div class="panel" id="userPanel">
+    <div class="panel hidden" id="userPanel" data-mod="users">
       <div class="up-head">
         <h2>👥 用户管理</h2>
         <button class="btn create" id="createUserBtn">＋ 创建用户</button>
@@ -213,7 +273,7 @@
       <div id="userList"></div>
     </div>
 
-    <div class="panel" id="commentPanel">
+    <div class="panel hidden" id="commentPanel" data-mod="comments">
       <div class="up-head">
         <h2>💬 评论审核</h2>
         <button class="btn ghost" id="refreshComments" style="margin-left:auto">刷新</button>
@@ -226,7 +286,7 @@
       <div id="commentList"></div>
     </div>
 
-    <div class="panel" id="matPanel">
+    <div class="panel hidden" id="matPanel" data-mod="materials">
       <div class="up-head">
         <h2>📚 学习专区管理</h2>
         <button class="btn create" id="addMatBtn">＋ 添加资料</button>
@@ -241,7 +301,7 @@
       <div id="matList"></div>
     </div>
 
-    <div class="panel" id="badwordPanel">
+    <div class="panel hidden" id="badwordPanel" data-mod="badwords">
       <div class="up-head">
         <h2>🚫 敏感词管理</h2>
         <button class="btn ghost" id="refreshBadwords" style="margin-left:auto">刷新</button>
@@ -254,7 +314,7 @@
       <div id="badwordList"></div>
     </div>
 
-    <div class="panel" id="changelogPanel">
+    <div class="panel hidden" id="changelogPanel" data-mod="changelog">
       <div class="up-head">
         <h2>📢 更新修复日志</h2>
         <button class="btn ghost" id="refreshChangelog" style="margin-left:auto">刷新</button>
@@ -280,7 +340,7 @@
       <div id="clList"></div>
     </div>
 
-    <div id="list"></div>
+    <div id="list" class="hidden" data-mod="posts"></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -491,7 +551,7 @@ async function commentAct(action,id){
     const r = await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body:'action='+action+'&id='+id});
     const d = await r.json();
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
-    toast(d.msg||'操作成功'); loadCommentReviews();
+    toast(d.msg||'操作成功'); loadCommentReviews(); loadPending();
   }catch(_){ toast('网络错误'); }
 }
 
@@ -558,7 +618,7 @@ async function act(action,id){
     const d=await r.json();
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
     toast('操作成功');
-    loadStats(); loadList();
+    loadStats(); loadList(); loadPending();
   }catch(_){ toast('网络错误'); }
 }
 
@@ -572,7 +632,7 @@ document.getElementById('loginBtn').addEventListener('click',async ()=>{
     const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'action=admin_login&username='+encodeURIComponent(u)+'&password='+encodeURIComponent(pw)});
     const d=await r.json();
-    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); loadChangelogAdmin(); }
+    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); bootDash(); }
     else toast(d.msg);
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='登录'; }
@@ -819,7 +879,7 @@ document.getElementById('em_submit').addEventListener('click', async ()=>{
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
     toast('资料已保存'); closeMini('editMatMask');
     if(editUid2){ const box=document.getElementById('ucl_'+editUid2); if(box && !box.classList.contains('hidden')) await loadUserContents(editUid2, box); }
-    else await loadMaterials();
+    else { await loadMaterials(); loadPending(); }
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='保存'; }
 });
@@ -853,7 +913,7 @@ document.getElementById('ec_submit').addEventListener('click', async ()=>{
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
     toast('文本已保存'); closeMini('editContentMask');
     if(editUid3){ const box=document.getElementById('ucl_'+editUid3); if(box && !box.classList.contains('hidden')) await loadUserContents(editUid3, box); }
-    else loadList();
+    else { loadList(); loadPending(); }
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='保存'; }
 });
@@ -906,9 +966,9 @@ document.getElementById('matList').addEventListener('click', async (e) => {
   const b = e.target.closest('button'); if(!b) return;
   const id = b.dataset.mid; if(!id) return;
   if(b.classList.contains('medit')){ openEditMatById(id); return; }
-  if(b.classList.contains('act-approve')){ if(!confirm('通过该资料并上架？')) return; const d = await apiAct('admin_material_approve', id); toast(d.msg || '已通过'); if(d.ok) loadMaterials(); return; }
-  if(b.classList.contains('act-reject')){ if(!confirm('拒绝该资料？')) return; const d = await apiAct('admin_material_reject', id); toast(d.msg || '已拒绝'); if(d.ok) loadMaterials(); return; }
-  if(b.classList.contains('cdel')){ if(!confirm('确定删除该资料？文件也将一并删除，不可恢复！')) return; const d = await apiAct('admin_material_delete', id); toast(d.msg || '已删除'); if(d.ok) loadMaterials(); return; }
+  if(b.classList.contains('act-approve')){ if(!confirm('通过该资料并上架？')) return; const d = await apiAct('admin_material_approve', id); toast(d.msg || '已通过'); if(d.ok){ loadMaterials(); loadPending(); } return; }
+  if(b.classList.contains('act-reject')){ if(!confirm('拒绝该资料？')) return; const d = await apiAct('admin_material_reject', id); toast(d.msg || '已拒绝'); if(d.ok){ loadMaterials(); loadPending(); } return; }
+  if(b.classList.contains('cdel')){ if(!confirm('确定删除该资料？文件也将一并删除，不可恢复！')) return; const d = await apiAct('admin_material_delete', id); toast(d.msg || '已删除'); if(d.ok){ loadMaterials(); loadPending(); } return; }
 });
 async function apiAct(action, id){
   try{ const r = await fetch(API, {method:'POST', headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}), body:'action='+action+'&id='+id}); const d = await r.json(); if(!d.ok){ if(r.status === 401) return doLogout(); } return d; }catch(_){ return {ok:false, msg:'网络错误'}; }
@@ -1103,7 +1163,124 @@ document.getElementById('clList').addEventListener('click', async e => {
 });
 
 // 启动：若已登录则直接进入
-if(token){ showDash(true); loadStats(); loadList(); loadInvites(); bindUserEvents(); loadUsers(); loadCommentReviews(); loadMaterials(); loadBadwords(); loadChangelogAdmin(); }
+// ===== 后台模块切换：点击标签，一次只显示一个模块 ==========================
+let curMod = 'pending';
+const MOD_LOADERS = {
+  pending:   () => loadPending(),
+  posts:     () => loadList(),
+  comments:  () => loadCommentReviews(),
+  materials: () => loadMaterials(),
+  users:     () => loadUsers(),
+  invites:   () => loadInvites(),
+  badwords:  () => loadBadwords(),
+  changelog: () => loadChangelogAdmin()
+};
+function switchMod(name){
+  if(!MOD_LOADERS[name]) name = 'pending';
+  curMod = name;
+  try{ sessionStorage.setItem('bb_admin_mod', name); }catch(_){}
+  document.querySelectorAll('[data-mod]').forEach(el =>
+    el.classList.toggle('hidden', el.dataset.mod !== name));
+  document.querySelectorAll('#modTabs button').forEach(b =>
+    b.classList.toggle('on', b.dataset.tab === name));
+  loadStats();
+  if(name !== 'pending') loadPending();   // 保证各模块的待审数量徽章始终准确
+  MOD_LOADERS[name]();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function bootDash(){
+  showDash(true);
+  bindUserEvents();
+  let last = 'pending';
+  try{ last = sessionStorage.getItem('bb_admin_mod') || 'pending'; }catch(_){}
+  switchMod(last);
+}
+document.getElementById('modTabs').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]'); if(!b) return;
+  switchMod(b.dataset.tab);
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-go]'); if(!b) return;
+  switchMod(b.dataset.go);
+});
+document.getElementById('refreshPending').addEventListener('click', loadPending);
+
+// ===== 待处理中心：汇总所有未审核内容，可就地通过 / 拒绝 ====================
+function setBadge(id, n, isAlert){
+  const el = document.getElementById(id); if(!el) return;
+  el.textContent = n;
+  el.className = 'tab-badge' + (n === 0 ? ' zero' : (isAlert ? ' alert' : ''));
+}
+async function adminGet(url){
+  const r = await fetch(url, {headers:authHeaders()});
+  if(r.status === 401){ doLogout(); return null; }
+  return r.json();
+}
+function psCard(n, label, mod){
+  return '<div class="ps-card'+(n===0?' zero':'')+'" data-go="'+mod+'"><b>'+n+'</b><span>'+label+'</span></div>';
+}
+function renderPendingMat(m){
+  const el = document.createElement('div'); el.className = 'pend-row';
+  el.innerHTML = '<div class="pr-main"><div class="pr-t"></div><div class="pr-s"></div></div>'+
+    '<button class="act-approve">✓ 通过</button><button class="act-reject">✕ 拒绝</button>';
+  el.querySelector('.pr-t').textContent = m.title || '未命名资料';
+  el.querySelector('.pr-s').textContent = (m.category_name||'其他')+' · '+(m.uploader||'官方')+
+    ' · '+(m.file_type||'').toUpperCase()+' · '+fmt(m.created_at);
+  el.querySelector('.act-approve').addEventListener('click', async () => {
+    if(!confirm('通过该资料并上架？')) return;
+    const d = await apiAct('admin_material_approve', m.id);
+    toast(d.msg || '已通过'); if(d.ok){ loadMaterials(); loadPending(); }
+  });
+  el.querySelector('.act-reject').addEventListener('click', async () => {
+    if(!confirm('拒绝该资料？')) return;
+    const d = await apiAct('admin_material_reject', m.id);
+    toast(d.msg || '已拒绝'); if(d.ok){ loadMaterials(); loadPending(); }
+  });
+  return el;
+}
+async function loadPending(){
+  const boxP = document.getElementById('pendingPosts'),
+        boxC = document.getElementById('pendingComments'),
+        boxM = document.getElementById('pendingMats');
+  [boxP, boxC, boxM].forEach(b => b.innerHTML = '<div class="empty">加载中…</div>');
+  try{
+    const [dp, dc, dm] = await Promise.all([
+      adminGet(API+'?action=admin_list&status=0'),
+      adminGet(API+'?action=admin_comment_list&status=0'),
+      adminGet(API+'?action=admin_material_list&status=0')
+    ]);
+    const posts = (dp && dp.ok && dp.posts) || [];
+    const cmts  = (dc && dc.ok && dc.comments) || [];
+    const mats  = (dm && dm.ok && dm.materials) || [];
+    const total = posts.length + cmts.length + mats.length;
+    setBadge('badgePending', total, true);
+    setBadge('badgePosts', posts.length);
+    setBadge('badgeComments', cmts.length);
+    setBadge('badgeMats', mats.length);
+    document.getElementById('pendPostCount').textContent = posts.length;
+    document.getElementById('pendCmtCount').textContent  = cmts.length;
+    document.getElementById('pendMatCount').textContent  = mats.length;
+    document.getElementById('pendingSum').innerHTML =
+      psCard(total, '全部待处理', 'pending') +
+      psCard(posts.length, '待审发布内容', 'posts') +
+      psCard(cmts.length, '待审评论', 'comments') +
+      psCard(mats.length, '待审资料', 'materials');
+
+    boxP.textContent = '';
+    if(!posts.length) boxP.innerHTML = '<div class="pend-empty">✅ 没有待审核的发布内容</div>';
+    else posts.forEach(p => boxP.appendChild(render(p)));
+    boxC.textContent = '';
+    if(!cmts.length) boxC.innerHTML = '<div class="pend-empty">✅ 没有待审核的评论</div>';
+    else cmts.forEach(c => boxC.appendChild(renderComment(c)));
+    boxM.textContent = '';
+    if(!mats.length) boxM.innerHTML = '<div class="pend-empty">✅ 没有待审核的资料</div>';
+    else mats.forEach(m => boxM.appendChild(renderPendingMat(m)));
+  }catch(_){
+    [boxP, boxC, boxM].forEach(b => b.innerHTML = '<div class="empty">加载失败，点右上角刷新重试</div>');
+  }
+}
+
+if(token){ bootDash(); }
 </script>
 </body>
 </html>

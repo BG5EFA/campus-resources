@@ -213,8 +213,8 @@
     <div class="row">
       <input type="text" id="nickname" maxlength="50" placeholder="昵称（留空则匿名）">
       <label class="anon"><input type="checkbox" id="anon"> 匿名</label>
-      <label class="file-btn">📷 图片
-        <input type="file" id="image" accept="image/*">
+      <label class="file-btn" title="支持 jpg / png / gif / webp，单张 ≤10MB">📷 图片 ≤10MB
+        <input type="file" id="image" accept="image/jpeg,image/png,image/gif,image/webp">
       </label>
       <button class="submit" id="submitBtn">发布</button>
     </div>
@@ -476,18 +476,34 @@ async function loadComments(id, box){
 // ---------- 发帖 ----------
 const imgInput = document.getElementById('image');
 const preview = document.getElementById('preview');
+const MAX_IMG = 10 * 1024 * 1024;
+const IMG_TYPES = ['image/jpeg','image/png','image/gif','image/webp'];
+let previewUrl = null;
+function clearPreview(){ if(previewUrl){ URL.revokeObjectURL(previewUrl); previewUrl=null; } preview.style.display='none'; }
+function checkImage(f){
+  if(!f) return '';
+  if(IMG_TYPES.indexOf(f.type) === -1) return '仅支持 jpg / png / gif / webp 图片';
+  if(f.size > MAX_IMG) return '图片不能超过 10MB，请压缩后重试';
+  return '';
+}
 imgInput.addEventListener('change', ()=>{
+  clearPreview();
   const f = imgInput.files[0];
-  if(f){ const rd = new FileReader(); rd.onload=e=>{ preview.style.display='block';
-    document.getElementById('previewImg').src=e.target.result; }; rd.readAsDataURL(f); }
-  else preview.style.display='none';
+  if(!f) return;
+  const err = checkImage(f);
+  if(err){ imgInput.value=''; toast(err); return; }
+  previewUrl = URL.createObjectURL(f);
+  preview.style.display='block';
+  document.getElementById('previewImg').src = previewUrl;
 });
 
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const content = document.getElementById('content').value.trim();
   if(!content){ toast('内容不能为空'); return; }
+  const imgErr = checkImage(imgInput.files[0]);
+  if(imgErr){ toast(imgErr); return; }
   const btn = document.getElementById('submitBtn');
-  btn.disabled = true; btn.textContent='发布中…';
+  btn.disabled = true; btn.textContent = imgInput.files[0] ? '上传中…' : '发布中…';
   const fd = new FormData();
   fd.append('action','create');
   fd.append('content', content);
@@ -497,14 +513,16 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   if(imgInput.files[0]) fd.append('image', imgInput.files[0]);
   try{
     const r = await fetch(API, {method:'POST', body:fd});
-    const d = await r.json();
+    if(r.status === 413){ toast('文件过大，服务器拒绝了上传，请压缩后重试'); return; }
+    let d;
+    try{ d = await r.json(); }catch(_){ toast('服务器返回异常（HTTP '+r.status+'）'); return; }
     if(d.ok){ toast('提交成功，等待审核 ❤');
       document.getElementById('content').value='';
       document.getElementById('nickname').value = ME ? ME.nickname : '';
-      imgInput.value=''; preview.style.display='none';
+      imgInput.value=''; clearPreview();
       loadPosts(true);
-    } else toast(d.msg);
-  }catch(_){ toast('网络错误'); }
+    } else toast(d.msg || '发布失败，请稍后重试');
+  }catch(_){ toast('网络错误，请检查网络后重试'); }
   finally{ btn.disabled=false; btn.textContent='发布'; }
 });
 

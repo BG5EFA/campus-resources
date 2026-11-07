@@ -5,27 +5,50 @@ USE biaobai;
 CREATE TABLE IF NOT EXISTS posts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nickname VARCHAR(50) NOT NULL DEFAULT '匿名',
+    title VARCHAR(150) DEFAULT NULL COMMENT '论坛主题标题',
     content TEXT NOT NULL,
     image VARCHAR(255) DEFAULT NULL,
     status TINYINT NOT NULL DEFAULT 0 COMMENT '0待审核 1已通过 2已拒绝',
     featured TINYINT NOT NULL DEFAULT 0 COMMENT '0普通 1优质置顶',
     featured_at DATETIME NULL,
+    category VARCHAR(16) NOT NULL DEFAULT 'other' COMMENT 'love表白 lost寻物 help求助 chat吐槽 other其他',
+    board TINYINT NOT NULL DEFAULT 0 COMMENT '0校园墙 1树洞 2论坛',
     likes INT NOT NULL DEFAULT 0,
     user_id INT NULL,
+    ip VARCHAR(45) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_status_time (status, created_at),
     INDEX idx_featured (featured, status),
+    INDEX idx_cat (board, category, status),
+    INDEX idx_board (board),
     INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS comments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     post_id INT NOT NULL,
+    user_id INT NULL,
     nickname VARCHAR(50) NOT NULL DEFAULT '匿名',
     content TEXT NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0待审核 1已通过 2已拒绝',
+    ip VARCHAR(45) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_post (post_id),
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    post_id INT NOT NULL,
+    user_id INT NULL,
+    ip VARCHAR(45) NOT NULL DEFAULT '',
+    reason VARCHAR(200) NOT NULL DEFAULT '',
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0待处理 1已处理(内容下架) 2已忽略',
+    admin_id INT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    handled_at DATETIME NULL,
+    INDEX idx_report_status (status, created_at),
+    INDEX idx_report_post (post_id, ip)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS post_likes (

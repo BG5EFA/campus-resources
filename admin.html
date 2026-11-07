@@ -87,11 +87,14 @@
   .badge.s0{background:#fff3cd;color:#a07a00}
   .badge.s1{background:#d6f5e6;color:#1f8a57}
   .badge.s2{background:#ffe0e0;color:#c23b3b}
-  .post .acts{display:flex;gap:10px;margin-top:10px}
-  .post .acts button{flex:1;border:none;border-radius:9px;padding:9px;font-size:13px;cursor:pointer;color:#fff}
+  .badge.star{background:#fff0c2;color:#a86a00}
+  .post .acts{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+  .post .acts button{flex:1;min-width:96px;border:none;border-radius:9px;padding:9px;font-size:13px;cursor:pointer;color:#fff}
   .act-approve{background:var(--green)}
   .act-reject{background:#ffb04d}
   .act-delete{background:var(--red)}
+  .act-feature{background:#e8a33b}
+  .act-unfeature{background:#8c93a8}
   .empty{text-align:center;color:var(--muted);padding:30px 0}
   .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(58,44,51,.92);
     color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;
@@ -198,6 +201,7 @@
     <nav class="mod-tabs" id="modTabs">
       <button data-tab="pending" class="on">🔴 待处理 <span class="tab-badge alert" id="badgePending">0</span></button>
       <button data-tab="posts">📝 发布内容 <span class="tab-badge zero" id="badgePosts">0</span></button>
+      <button data-tab="featured">⭐ 优质内容 <span class="tab-badge zero" id="badgeFeatured">0</span></button>
       <button data-tab="comments">💬 评论审核 <span class="tab-badge zero" id="badgeComments">0</span></button>
       <button data-tab="materials">📚 学习专区 <span class="tab-badge zero" id="badgeMats">0</span></button>
       <button data-tab="users">👥 用户管理</button>
@@ -339,6 +343,18 @@
       </div>
       <div id="clList"></div>
     </div>
+
+    <!-- ===== 模块：优质内容（管理员置顶） ===== -->
+    <section class="hidden" data-mod="featured">
+      <div class="panel">
+        <div class="up-head">
+          <h2>⭐ 优质内容 <span class="cnt" id="featCount">0</span></h2>
+          <button class="btn ghost" data-go="posts" style="margin-left:auto">去挑选内容 →</button>
+        </div>
+        <p class="bw-tip">在「📝 发布内容」或「🔴 待处理」里点 <b>⭐ 设优质</b>，即可一键通过审核并自动置顶到校园墙顶部的优质内容专区。这里可随时取消置顶；最近标记的排在最前面，无需手动排序。</p>
+      </div>
+      <div id="featuredList"></div>
+    </section>
 
     <div id="list" class="hidden" data-mod="posts"></div>
   </div>
@@ -579,8 +595,10 @@ async function loadInvites(){
 function render(p){
   const el=document.createElement('div');el.className='post';
   const badges=['待审核','已通过','已拒绝'];
+  const isFeat=Number(p.featured)===1;
   let html='<div class="top"><div class="avatar">'+(esc(p.nickname)[0]||'匿').toUpperCase()+'</div>'+
-    '<div><div class="name">'+''+'<span class="badge s'+p.status+'">'+badges[p.status]+'</span></div>'+
+    '<div><div class="name">'+''+'<span class="badge s'+p.status+'">'+badges[p.status]+'</span>'+
+    (isFeat? '<span class="badge star">⭐ 优质</span>':'')+'</div>'+
     '<div class="time">'+fmt(p.created_at)+(p.ip? ' · IP '+esc(p.ip):'')+'</div></div></div>';
   html+='<div class="content"></div>';
   const img=safeImg(p.image); if(img) html+='<img class="pic" src="'+img+'">';
@@ -588,6 +606,8 @@ function render(p){
     (p.status!==1?'<button class="act-approve" data-id="'+p.id+'">✓ 通过</button>':'')+
     (p.status!==2?'<button class="act-reject" data-id="'+p.id+'">✕ 拒绝</button>':'')+
     '<button class="act-edit" data-id="'+p.id+'">✏ 编辑文本</button>'+
+    (isFeat? '<button class="act-unfeature" data-id="'+p.id+'">✩ 取消置顶</button>'
+           : '<button class="act-feature" data-id="'+p.id+'">⭐ 设优质</button>')+
     '<button class="act-delete" data-id="'+p.id+'">🗑 删除</button></div>';
   el.innerHTML=html;
   el.querySelector('.name').insertBefore(document.createTextNode(esc(p.nickname)),el.querySelector('.name').firstChild);
@@ -595,6 +615,11 @@ function render(p){
   el.querySelector('.act-approve')?.addEventListener('click',()=>act('admin_approve',p.id));
   el.querySelector('.act-reject')?.addEventListener('click',()=>act('admin_reject',p.id));
   el.querySelector('.act-edit')?.addEventListener('click',()=>openEditPostCard(p));
+  el.querySelector('.act-feature')?.addEventListener('click',()=>{
+    if(!confirm('设为优质内容？将自动通过审核，并置顶展示在校园墙顶部。')) return;
+    act('admin_post_feature',p.id,'&value=1');
+  });
+  el.querySelector('.act-unfeature')?.addEventListener('click',()=>act('admin_post_feature',p.id,'&value=0'));
   el.querySelector('.act-delete')?.addEventListener('click',()=>{
     if(confirm('确定删除这条帖子？')) act('admin_delete',p.id);
   });
@@ -611,14 +636,14 @@ function openEditPostCard(p){
   openMini('editContentMask');
 }
 
-async function act(action,id){
+async function act(action,id,extra){
   try{
     const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),
-      body:'action='+action+'&post_id='+id});
+      body:'action='+action+'&post_id='+id+(extra||'')});
     const d=await r.json();
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
-    toast('操作成功');
-    loadStats(); loadList(); loadPending();
+    toast(d.msg||'操作成功');
+    loadStats(); loadList(); loadPending(); loadFeatured();
   }catch(_){ toast('网络错误'); }
 }
 
@@ -1167,6 +1192,7 @@ let curMod = 'pending';
 const MOD_LOADERS = {
   pending:   () => loadPending(),
   posts:     () => loadList(),
+  featured:  () => loadFeatured(),
   comments:  () => loadCommentReviews(),
   materials: () => loadMaterials(),
   users:     () => loadUsers(),
@@ -1184,6 +1210,7 @@ function switchMod(name){
     b.classList.toggle('on', b.dataset.tab === name));
   loadStats();
   if(name !== 'pending') loadPending();   // 保证各模块的待审数量徽章始终准确
+  if(name !== 'featured') loadFeatured(); // 保证优质内容数量徽章始终准确
   MOD_LOADERS[name]();
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -1237,6 +1264,40 @@ function renderPendingMat(m){
   });
   return el;
 }
+// ===== 优质内容：集中查看 / 取消置顶 ====================================
+function renderFeaturedRow(p){
+  const el=document.createElement('div'); el.className='pend-row';
+  const boards=['校园墙','树洞','论坛'];
+  const text=p.content||'';
+  el.innerHTML='<div class="pr-main"><div class="pr-t"></div><div class="pr-s"></div></div>'+
+    '<button class="act-unfeature">✩ 取消置顶</button>';
+  el.querySelector('.pr-t').textContent='⭐ '+(text.slice(0,48)+(text.length>48?'…':''));
+  el.querySelector('.pr-s').textContent=(boards[Number(p.board)]||'校园墙')+' · '+(p.nickname||'匿名')+
+    ' · '+fmt(p.featured_at||p.created_at)+' · ❤ '+(p.likes||0)+' 💬 '+(p.comment_count||0);
+  el.querySelector('.act-unfeature').addEventListener('click',async ()=>{
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),
+      body:'action=admin_post_feature&post_id='+p.id+'&value=0'});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast(d.msg||'已取消置顶'); loadList(); loadFeatured();
+  });
+  return el;
+}
+async function loadFeatured(){
+  const box=document.getElementById('featuredList');
+  if(!box) return;
+  box.innerHTML='<div class="empty">加载中…</div>';
+  try{
+    const d=await adminGet(API+'?action=featured_list&board=-1');
+    const list=(d&&d.ok&&d.posts)||[];
+    setBadge('badgeFeatured',list.length);
+    document.getElementById('featCount').textContent=list.length;
+    box.textContent='';
+    if(!list.length) box.innerHTML='<div class="pend-empty">还没有优质内容，去「发布内容」里点 ⭐ 设优质吧</div>';
+    else list.forEach(p=>box.appendChild(renderFeaturedRow(p)));
+  }catch(_){ box.innerHTML='<div class="empty">加载失败，请刷新重试</div>'; }
+}
+
 async function loadPending(){
   const boxP = document.getElementById('pendingPosts'),
         boxC = document.getElementById('pendingComments'),

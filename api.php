@@ -314,12 +314,26 @@ switch ($action) {
         $where = 'WHERE p.status = 1 AND p.board = ' . intval($board);
         $stmt = $pdo->query(
             'SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
-             FROM posts p ' . $where . ' ORDER BY p.created_at DESC
+             FROM posts p ' . $where . ' ORDER BY p.featured DESC, p.created_at DESC
              LIMIT ' . intval($per) . ' OFFSET ' . intval($offset)
         );
         $posts = $stmt->fetchAll();
         $total = $pdo->query('SELECT COUNT(*) FROM posts p ' . $where)->fetchColumn();
         json_out(['ok' => true, 'posts' => $posts, 'page' => $page, 'per' => $per, 'total' => (int) $total]);
+        break;
+
+    // ===== 优质内容：公开列表（首页顶部独立板块）=====
+    // board >= 0 取指定板块；board < 0 取全部（后台管理用）
+    case 'featured_list':
+        $board = intval($_GET['board'] ?? 0);
+        $whereBoard = $board >= 0 ? ' AND p.board = ' . $board : '';
+        $stmt = $pdo->query(
+            'SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+             FROM posts p
+             WHERE p.status = 1 AND p.featured = 1' . $whereBoard . '
+             ORDER BY p.featured_at DESC, p.id DESC LIMIT 12'
+        );
+        json_out(['ok' => true, 'posts' => $stmt->fetchAll()]);
         break;
 
     // ===== 帖子：发布（进入待审核）=====
@@ -962,7 +976,12 @@ switch ($action) {
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $id = intval($_POST['post_id'] ?? 0);
         $st = $action === 'admin_approve' ? 1 : 2;
-        $pdo->prepare('UPDATE posts SET status = ? WHERE id = ?')->execute([$st, $id]);
+        // 被拒绝的内容不再参与优质置顶，避免脏数据
+        if ($st === 2) {
+            $pdo->prepare('UPDATE posts SET status = ?, featured = 0, featured_at = NULL WHERE id = ?')->execute([$st, $id]);
+        } else {
+            $pdo->prepare('UPDATE posts SET status = ? WHERE id = ?')->execute([$st, $id]);
+        }
         $p = $pdo->prepare('SELECT user_id, board FROM posts WHERE id = ?');
         $p->execute([$id]);
         $row = $p->fetch();
@@ -972,6 +991,25 @@ switch ($action) {
             add_notification($pdo, $row['user_id'], 'post_' . ($st === 1 ? 'approved' : 'rejected'), $id, $msg);
         }
         json_out(['ok' => true]);
+        break;
+
+    // ===== 后台：设为 / 取消优质内容（前台自动置顶）=====
+    case 'admin_post_feature':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $id = intval($_POST['post_id'] ?? 0);
+        if ($id <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $on = intval($_POST['value'] ?? 1) === 1 ? 1 : 0;
+        $chk = $pdo->prepare('SELECT id FROM posts WHERE id = ?');
+        $chk->execute([$id]);
+        if (!$chk->fetch()) json_out(['ok' => false, 'msg' => '内容不存在'], 404);
+        if ($on) {
+            // 一键认可：自动通过审核，并立即置顶到前台优质内容区
+            $pdo->prepare('UPDATE posts SET featured = 1, featured_at = NOW(), status = 1 WHERE id = ?')->execute([$id]);
+        } else {
+            $pdo->prepare('UPDATE posts SET featured = 0, featured_at = NULL WHERE id = ?')->execute([$id]);
+        }
+        json_out(['ok' => true, 'featured' => $on, 'msg' => $on ? '已设为优质，前台自动置顶' : '已取消置顶']);
         break;
 
     // ===== 后台：帖子删除 =====

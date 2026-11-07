@@ -22,6 +22,10 @@ try {
 }
 
 // ---------- 工具 ----------
+function post_categories()
+{
+    return ['love', 'lost', 'help', 'chat', 'other'];
+}
 function json_out($data, $code = 200)
 {
     http_response_code($code);
@@ -305,20 +309,35 @@ if ($action === '' && $method === 'POST' && intval($_SERVER['CONTENT_LENGTH'] ??
 
 switch ($action) {
 
-    // ===== 帖子：列表（board: 0校园墙 1树洞 2论坛）=====
+    // ===== 帖子：列表（board: 0校园墙 1树洞 2论坛；支持分类与关键词）=====
     case 'list':
         $page = max(1, intval($_GET['page'] ?? 1));
         $per = 10;
         $offset = ($page - 1) * $per;
         $board = intval($_GET['board'] ?? 0);
-        $where = 'WHERE p.status = 1 AND p.board = ' . intval($board);
-        $stmt = $pdo->query(
+        $params = [':board' => $board];
+        $where = 'WHERE p.status = 1 AND p.board = :board';
+        $cat = trim((string) ($_GET['category'] ?? ''));
+        if ($cat !== '' && in_array($cat, post_categories(), true)) {
+            $where .= ' AND p.category = :cat';
+            $params[':cat'] = $cat;
+        }
+        // LOCATE 做子串匹配，天然避免 LIKE 通配符转义问题，参数全程绑定
+        $q = mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 50);
+        if ($q !== '') {
+            $where .= ' AND (LOCATE(:q, p.content) > 0 OR LOCATE(:q, p.title) > 0 OR LOCATE(:q, p.nickname) > 0)';
+            $params[':q'] = $q;
+        }
+        $stmt = $pdo->prepare(
             'SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
              FROM posts p ' . $where . ' ORDER BY p.featured DESC, p.created_at DESC
              LIMIT ' . intval($per) . ' OFFSET ' . intval($offset)
         );
+        $stmt->execute($params);
         $posts = $stmt->fetchAll();
-        $total = $pdo->query('SELECT COUNT(*) FROM posts p ' . $where)->fetchColumn();
+        $cnt = $pdo->prepare('SELECT COUNT(*) FROM posts p ' . $where);
+        $cnt->execute($params);
+        $total = $cnt->fetchColumn();
         json_out(['ok' => true, 'posts' => $posts, 'page' => $page, 'per' => $per, 'total' => (int) $total]);
         break;
 
@@ -341,6 +360,8 @@ switch ($action) {
         if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
         $board = intval($_POST['board'] ?? 0);
         if (!in_array($board, [0, 1, 2], true)) $board = 0;
+        $cat = trim((string) ($_POST['category'] ?? 'other'));
+        if (!in_array($cat, post_categories(), true)) $cat = 'other';
         $title = null;
         if ($board === 2) {
             $title = trim($_POST['title'] ?? '');
@@ -373,8 +394,8 @@ switch ($action) {
         $nickname = filter_bad_words($pdo, $nickname);
         $title = $title === null ? null : filter_bad_words($pdo, $title);
         $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO posts (nickname,title,content,image,status,user_id,board,ip) VALUES (?,?,?,?,0,?,?,?)')
-            ->execute([$nickname, $title, $content, $image, $uid, $board, get_client_ip()]);
+        $pdo->prepare('INSERT INTO posts (nickname,title,content,image,status,user_id,board,category,ip) VALUES (?,?,?,?,0,?,?,?,?)')
+            ->execute([$nickname, $title, $content, $image, $uid, $board, $cat, get_client_ip()]);
         json_out(['ok' => true, 'msg' => '提交成功，等待审核通过后展示']);
         break;
 
@@ -539,7 +560,7 @@ switch ($action) {
     case 'me':
         $user = require_user($pdo);
         if (!$user) json_out(['ok' => false, 'msg' => '未登录'], 401);
-        json_out(['ok' => true, 'username' => $user['username'], 'nickname' => $user['nickname']]);
+        json_out(['ok' => true, 'id' => (int) $user['id'], 'username' => $user['username'], 'nickname' => $user['nickname']]);
         break;
 
     // ===== 用户：退出 =====
@@ -1080,10 +1101,113 @@ switch ($action) {
         json_out(['ok' => true]);
         break;
 
+    // ===== 用户：删除自己发布的内容 =====
+    case 'post_delete_own':
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $user = require_user($pdo);
+        if (!$user) json_out(['ok' => false, 'msg' => '请先登录'], 401);
+        $id = intval($_POST['post_id'] ?? 0);
+        if ($id <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $st = $pdo->prepare('SELECT id, user_id FROM posts WHERE id = ?');
+        $st->execute([$id]);
+        $post = $st->fetch();
+        if (!$post || (int) $post['user_id'] !== (int) $user['id']) {
+            json_out(['ok' => false, 'msg' => '只能删除自己发布的内容'], 403);
+        }
+        $pdo->beginTransaction();
+        $pdo->prepare('DELETE FROM post_likes WHERE post_id = ?')->execute([$id]);
+        try { $pdo->prepare('DELETE FROM reports WHERE post_id = ?')->execute([$id]); } catch (Throwable $e) {}
+        $pdo->prepare('DELETE FROM comments WHERE post_id = ?')->execute([$id]);
+        $pdo->prepare('DELETE FROM posts WHERE id = ?')->execute([$id]);
+        $pdo->commit();
+        json_out(['ok' => true, 'msg' => '已删除']);
+        break;
+
+    // ===== 举报：提交（可不登录，按 IP 限频）=====
+    case 'report_add':
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $id = intval($_POST['post_id'] ?? 0);
+        $ip = get_client_ip();
+        $chk = $pdo->prepare('SELECT id FROM posts WHERE id = ? AND status = 1');
+        $chk->execute([$id]);
+        if (!$chk->fetch()) json_out(['ok' => false, 'msg' => '内容不存在或已下架'], 400);
+        $recent = $pdo->prepare('SELECT COUNT(*) FROM reports WHERE post_id = ? AND ip = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)');
+        $recent->execute([$id, $ip]);
+        if ((int) $recent->fetchColumn() > 0) json_out(['ok' => false, 'msg' => '这条内容你已经举报过啦，管理员会处理'], 400);
+        $burst = $pdo->prepare('SELECT COUNT(*) FROM reports WHERE ip = ? AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)');
+        $burst->execute([$ip]);
+        if ((int) $burst->fetchColumn() >= 3) json_out(['ok' => false, 'msg' => '举报太频繁了，请稍后再试'], 429);
+        $reason = filter_bad_words($pdo, mb_substr(trim((string) ($_POST['reason'] ?? '')), 0, 200));
+        $user = require_user($pdo);
+        $pdo->prepare('INSERT INTO reports (post_id, user_id, ip, reason, status) VALUES (?,?,?,?,0)')
+            ->execute([$id, $user ? $user['id'] : null, $ip, $reason]);
+        json_out(['ok' => true, 'msg' => '举报已提交，管理员会尽快处理，谢谢！']);
+        break;
+
+    // ===== 后台：举报列表 =====
+    case 'admin_report_list':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $status = intval($_GET['status'] ?? 0);
+        if (!in_array($status, [0, 1, 2], true)) $status = 0;
+        $stmt = $pdo->prepare(
+            'SELECT r.*, LEFT(p.content, 80) AS excerpt, p.board, p.status AS post_status, p.nickname
+             FROM reports r LEFT JOIN posts p ON p.id = r.post_id
+             WHERE r.status = ? ORDER BY r.created_at DESC LIMIT 100'
+        );
+        $stmt->execute([$status]);
+        json_out(['ok' => true, 'reports' => $stmt->fetchAll()]);
+        break;
+
+    // ===== 后台：处理举报（1=下架内容并处理 2=忽略）=====
+    case 'admin_report_handle':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $id = intval($_POST['id'] ?? 0);
+        $value = intval($_POST['value'] ?? 0);
+        if ($id <= 0 || !in_array($value, [1, 2], true)) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $st = $pdo->prepare('SELECT id, post_id, status FROM reports WHERE id = ?');
+        $st->execute([$id]);
+        $rep = $st->fetch();
+        if (!$rep) json_out(['ok' => false, 'msg' => '举报不存在'], 404);
+        if ((int) $rep['status'] !== 0) json_out(['ok' => false, 'msg' => '这条举报已处理过了'], 400);
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE reports SET status = ?, admin_id = ?, handled_at = NOW() WHERE id = ?')
+            ->execute([$value, (int) $adm['admin_id'], $id]);
+        if ($value === 1) {
+            $pdo->prepare('UPDATE posts SET status = 2, featured = 0, featured_at = NULL WHERE id = ?')
+                ->execute([(int) $rep['post_id']]);
+        }
+        $pdo->commit();
+        json_out(['ok' => true, 'msg' => $value === 1 ? '已下架内容并标记处理' : '已忽略该举报']);
+        break;
+
     // ===== 后台：统计 =====
     case 'admin_stats':
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        // 扩展统计用容错查询，新增表/字段缺失时降级为 0，不影响原有仪表盘
+        $safeCount = static function ($sql) use ($pdo) {
+            try { return (int) $pdo->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; }
+        };
+        $trend = [];
+        try {
+            $map = [];
+            foreach ($pdo->query("SELECT DATE(created_at) AS d, COUNT(*) AS n FROM posts
+                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                GROUP BY DATE(created_at)")->fetchAll() as $r) {
+                $map[$r['d']] = (int) $r['n'];
+            }
+            for ($i = 6; $i >= 0; $i--) {
+                $d = date('Y-m-d', strtotime('-' . $i . ' days'));
+                $trend[] = ['date' => substr($d, 5), 'count' => $map[$d] ?? 0];
+            }
+        } catch (Throwable $e) { $trend = []; }
+        try {
+            $top = $pdo->query("SELECT id, board, LEFT(content, 60) AS excerpt, likes FROM posts
+                WHERE status = 1 ORDER BY likes DESC, id DESC LIMIT 5")->fetchAll();
+        } catch (Throwable $e) { $top = []; }
         json_out(['ok' => true, 'stats' => [
             'pending'   => (int) $pdo->query("SELECT COUNT(*) FROM posts WHERE status = 0")->fetchColumn(),
             'approved'  => (int) $pdo->query("SELECT COUNT(*) FROM posts WHERE status = 1")->fetchColumn(),
@@ -1094,6 +1218,16 @@ switch ($action) {
             'topics'    => (int) $pdo->query("SELECT COUNT(*) FROM forum_topics WHERE status = 1")->fetchColumn(),
             'comments'  => (int) $pdo->query("SELECT COUNT(*) FROM comments")->fetchColumn(),
             'users'     => (int) $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn(),
+            'today_posts'    => $safeCount('SELECT COUNT(*) FROM posts WHERE DATE(created_at) = CURDATE()'),
+            'today_comments' => $safeCount('SELECT COUNT(*) FROM comments WHERE DATE(created_at) = CURDATE()'),
+            'today_users'    => $safeCount('SELECT COUNT(*) FROM users WHERE DATE(created_at) = CURDATE()'),
+            'week_posts'     => $safeCount('SELECT COUNT(*) FROM posts WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)'),
+            'reports'        => $safeCount('SELECT COUNT(*) FROM reports WHERE status = 0'),
+            'reports_all'    => $safeCount('SELECT COUNT(*) FROM reports'),
+            'materials'      => $safeCount('SELECT COUNT(*) FROM materials'),
+            'featured'       => $safeCount('SELECT COUNT(*) FROM posts WHERE featured = 1 AND status = 1'),
+            'trend'          => $trend,
+            'top_posts'      => $top,
         ]]);
         break;
 

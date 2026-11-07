@@ -25,7 +25,7 @@
 | 后端 | PHP 8.2（PDO / MySQL），单文件 `api.php` 路由 |
 | 前端 | 原生 HTML / CSS / JS，多页面 |
 | 数据库 | MySQL（`schema.sql` + `migrate*.sql` 增量迁移，幂等） |
-| 服务器 | Nginx + php-fpm，Let's Encrypt SSL |
+| 服务器 | Nginx + php-fpm，Let's Encrypt SSL（ECDSA + RSA 双证书并行，兼容老设备） |
 
 ## 目录结构
 
@@ -47,7 +47,10 @@
 ├── migrate*.sql         # 增量迁移（幂等）
 ├── deploy.sh            # 一键部署脚本
 ├── CHANGELOG.md         # 更新修复日志（与站点后台发布内容同步）
-└── nginx/               # Nginx 站点配置参考
+├── scripts/
+│   ├── backup.sh        # 每日备份：数据库 + uploads（部署为 /root/backup_campus.sh）
+│   └── restore.sh       # 一键恢复（部署为 /root/restore_campus.sh）
+└── nginx/               # Nginx 站点配置参考（bingao.conf 含双证书与安全头）
 ```
 
 ## 快速开始
@@ -73,8 +76,16 @@
 
 更新修复日志见 [CHANGELOG.md](CHANGELOG.md)，站点内可在「关于 / 更新」模块查看。
 
+## 运维与可靠性
+
+- **备份**：`scripts/backup.sh` 每天 03:30 由 cron 执行，产物在 `/www/backup/campus/`，日志 `/var/log/campus_backup.log`，保留 14 天；每次备份都会做 `gzip -t` 完整性校验
+- **恢复**：`scripts/restore.sh <db_YYYYMMDD_HHMMSS.sql.gz> [--yes]`，默认需交互输入 `yes`，并先自动保存一份恢复前快照
+- **证书**：ECDSA + RSA 双证书由 Nginx 按客户端能力自动选择；RSA 证书用 `certbot --cert-name bingao-rsa` 独立签发，certbot.timer 自动续期
+- **安全头**：HSTS（先设 1 天观察）、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`；后台额外 `no-store`
+
 ## 安全说明
 
 - `config.php` 含真实数据库密码，**已在 `.gitignore` 排除**，请勿提交
 - `deploy.sh` 的 root 密码通过环境变量 `SSH_PASS` 传入，无硬编码
+- 备份脚本从 `/root/.mysql_root` 读取数据库密码，脚本内不含明文；**备份文件含用户数据，仅存服务器本地，请勿外传或提交到公开仓库**
 - 上传目录 `uploads/` 已排除，且禁止执行其中的 PHP

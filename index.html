@@ -187,6 +187,20 @@
   .captcha-row input{flex:1}
   .captcha-img{height:42px;border-radius:8px;border:1px solid var(--line);cursor:pointer;background:#f7fbff}
   .captcha-img:active{transform:scale(.97)}
+  /* 投稿分类 / 搜索筛选 / 举报 */
+  .cat-sel{border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;color:var(--blue-d);background:rgba(255,255,255,.9);outline:none;cursor:pointer}
+  .cat-sel:focus{border-color:var(--blue)}
+  .filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 10px;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+  .filter-bar input[type=search]{flex:1;min-width:150px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none}
+  .filter-bar input[type=search]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,123,255,.12)}
+  .cat-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .cat-chips button{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:20px;padding:5px 11px;font-size:12px;cursor:pointer}
+  .cat-chips button.on{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border-color:transparent;font-weight:600}
+  .cat-tag{display:inline-block;margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:#eef4ff;color:var(--blue-d);vertical-align:middle}
+  .post .acts .act-mini{font-size:12px;opacity:.7}
+  .post .acts .act-mini:hover{opacity:1;color:var(--blue-d)}
+  .report-reason{width:100%;min-height:80px;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;resize:vertical;outline:none}
+  .report-reason:focus{border-color:var(--blue)}
 </style>
 </head>
 <body>
@@ -240,6 +254,13 @@
     <textarea id="content" maxlength="500" placeholder="写下你想说的悄悄话…（1-500字）"></textarea>
     <div class="preview" id="preview"><img id="previewImg" alt="预览"></div>
     <div class="row">
+      <select class="cat-sel" id="category" aria-label="投稿分类">
+        <option value="love">💌 表白</option>
+        <option value="lost">🔎 寻物</option>
+        <option value="help">🙋 求助</option>
+        <option value="chat">💬 吐槽</option>
+        <option value="other" selected>✨ 其他</option>
+      </select>
       <input type="text" id="nickname" maxlength="50" placeholder="昵称（留空则匿名）">
       <label class="anon"><input type="checkbox" id="anon"> 匿名</label>
       <label class="file-btn" title="支持 jpg / png / gif / webp，单张 ≤10MB">📷 图片 ≤10MB
@@ -256,6 +277,18 @@
     <div class="feat-tip">点卡片可展开全文，点图片看原图</div>
   </section>
 
+  <div class="filter-bar">
+    <input type="search" id="searchInput" placeholder="🔍 搜索内容 / 昵称…" maxlength="50" autocomplete="off">
+    <div class="cat-chips" id="catChips">
+      <button data-cat="" class="on">全部</button>
+      <button data-cat="love">💌 表白</button>
+      <button data-cat="lost">🔎 寻物</button>
+      <button data-cat="help">🙋 求助</button>
+      <button data-cat="chat">💬 吐槽</button>
+      <button data-cat="other">✨ 其他</button>
+    </div>
+  </div>
+
   <div class="wall" id="wall"></div>
   <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
 
@@ -269,6 +302,17 @@
 
 <!-- 配图原图查看 -->
 <div class="img-mask" id="imgMask"><img id="imgMaskPic" alt="原图"></div>
+
+<!-- 举报弹窗 -->
+<div class="mask" id="reportMask">
+  <div class="modal">
+    <span class="close" data-close="reportMask">×</span>
+    <h3>举报这条内容</h3>
+    <p class="h">请简单说明原因，管理员会尽快处理。</p>
+    <textarea class="report-reason" id="reportReason" maxlength="200" placeholder="例如：含有不适宜内容 / 人身攻击…（可不填）"></textarea>
+    <button class="mbtn" id="reportSubmit">提交举报</button>
+  </div>
+</div>
 
 <!-- 登录弹窗 -->
 <div class="mask" id="loginMask">
@@ -318,6 +362,9 @@
 const API = 'api.php';
 let page = 1, loading = false, noMore = false;
 let TOKEN = localStorage.getItem('bb_token') || '';
+const CATS = {love:'💌 表白', lost:'🔎 寻物', help:'🙋 求助', chat:'💬 吐槽', other:'✨ 其他'};
+let curCat = '', curQ = '', reportPostId = 0;
+function escHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let ME = null;
 
 function toast(msg){
@@ -354,10 +401,10 @@ async function refreshUser(){
 function renderAuth(){
   const area = document.getElementById('authArea');
   if(ME){
-    const letter = (ME.nickname||ME.username||'?')[0].toUpperCase();
+    const letter = escHtml(String((ME.nickname||ME.username||'?')[0]).toUpperCase());
     area.innerHTML =
       '<div class="user-chip"><div class="av">'+letter+'</div>'+
-      '<span class="nm">'+escName(ME.nickname)+'</span>'+
+      '<span class="nm">'+escHtml(ME.nickname)+'</span>'+
       '<button class="btn-ghost" id="logoutBtn">退出</button></div>';
     document.getElementById('logoutBtn').addEventListener('click', logout);
     // 预填昵称
@@ -371,6 +418,7 @@ function renderAuth(){
     document.getElementById('regBtn').addEventListener('click', ()=>openAuth('reg'));
     document.getElementById('nickname').value = '';
   }
+  loadPosts(true);   // 登录状态确定后再渲染，保证「删除自己的内容」按钮正确
 }
 function logout(){
   if(TOKEN){ fetch(API, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -404,7 +452,9 @@ async function loadPosts(reset){
   if(reset){ page = 1; noMore = false; document.getElementById('wall').innerHTML=''; }
   const wall = document.getElementById('wall');
   try{
-    const r = await fetch(API+'?action=list&page='+page);
+    const r = await fetch(API+'?action=list&page='+page+
+      (curCat ? '&category='+encodeURIComponent(curCat) : '')+
+      (curQ ? '&q='+encodeURIComponent(curQ) : ''));
     const data = await r.json();
     if(!data.ok){ toast(data.msg||'加载失败'); return; }
     if(data.posts.length===0 && page===1){
@@ -447,11 +497,14 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape') imgMask.class
 function renderPost(p){
   const el = document.createElement('div');
   el.className = 'post';
-  const avatar = (escName(p.nickname)[0]||'匿').toUpperCase();
+  const avatar = escHtml(String(escName(p.nickname)[0]||'匿').toUpperCase());
+  const catLabel = CATS[p.category] || CATS.other;
+  const mine = !!(ME && p.user_id && Number(p.user_id) === Number(ME.id));
   let html = '';
   html += '<div class="top"><div class="avatar">'+avatar+'</div>'+
           '<div><div class="name"></div>'+
           (Number(p.featured)===1? '<span class="top-tag">⭐ 优质</span>':'')+
+          '<span class="cat-tag">'+escHtml(catLabel)+'</span>'+
           '<div class="time"></div></div></div>';
   html += '<div class="content"></div>';
   const img = safeImg(p.image);
@@ -459,6 +512,8 @@ function renderPost(p){
   html += '<div class="acts">'+
           '<button class="like" data-id="'+p.id+'">❤ <span class="cnt">'+(p.likes||0)+'</span></button>'+
           '<button class="cmt-toggle" data-id="'+p.id+'">💬 评论 <span>'+(p.comment_count||0)+'</span></button>'+
+          '<button class="act-mini act-report" data-id="'+p.id+'">⚑ 举报</button>'+
+          (mine ? '<button class="act-mini act-del" data-id="'+p.id+'">🗑 删除</button>' : '')+
           '</div>';
   html += '<div class="comments" data-id="'+p.id+'">'+
           '<div class="cmt-list"></div>'+
@@ -503,6 +558,25 @@ function renderPost(p){
     const d = await r.json();
     if(d.ok){ inp.value=''; toast(d.msg); }   // 评论进入审核，不即时上屏/不计数的
     else toast(d.msg);
+  });
+
+  const delBtn = el.querySelector('.act-del');
+  if(delBtn) delBtn.addEventListener('click', async ()=>{
+    if(!confirm('确定删除自己发布的这条内容吗？删除后不可恢复。')) return;
+    const fd = new FormData();
+    fd.append('action','post_delete_own'); fd.append('post_id', p.id);
+    if(TOKEN) fd.append('token', TOKEN);
+    try{
+      const r = await fetch(API, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.ok){ el.remove(); toast('已删除'); loadFeatured(); }
+      else toast(d.msg || '删除失败');
+    }catch(_){ toast('网络错误'); }
+  });
+  el.querySelector('.act-report').addEventListener('click', ()=>{
+    reportPostId = p.id;
+    document.getElementById('reportReason').value = '';
+    openMask('reportMask');
   });
   return el;
 }
@@ -560,6 +634,7 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const fd = new FormData();
   fd.append('action','create');
   fd.append('content', content);
+  fd.append('category', document.getElementById('category').value);
   fd.append('nickname', document.getElementById('nickname').value.trim());
   if(document.getElementById('anon').checked) fd.append('anonymous','1');
   if(TOKEN) fd.append('token', TOKEN);
@@ -663,8 +738,37 @@ async function loadFeatured(){
 }
 
 // 初始化
+// ---------- 分类筛选 / 搜索 / 举报 ----------
+let searchTimer = null;
+document.getElementById('catChips').addEventListener('click', e=>{
+  const b = e.target.closest('button[data-cat]'); if(!b) return;
+  curCat = b.dataset.cat;
+  document.querySelectorAll('#catChips button').forEach(x=>x.classList.toggle('on', x===b));
+  loadPosts(true);
+});
+document.getElementById('searchInput').addEventListener('input', e=>{
+  clearTimeout(searchTimer);
+  const v = e.target.value.trim();
+  searchTimer = setTimeout(()=>{ curQ = v; loadPosts(true); }, 300);
+});
+document.getElementById('reportSubmit').addEventListener('click', async ()=>{
+  if(!reportPostId) return;
+  const btn = document.getElementById('reportSubmit');
+  btn.disabled = true;
+  const fd = new FormData();
+  fd.append('action','report_add'); fd.append('post_id', reportPostId);
+  fd.append('reason', document.getElementById('reportReason').value.trim());
+  if(TOKEN) fd.append('token', TOKEN);
+  try{
+    const r = await fetch(API, {method:'POST', body:fd});
+    const d = await r.json();
+    toast(d.msg || (d.ok ? '已提交' : '提交失败'));
+    if(d.ok) closeMask('reportMask');
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled = false; }
+});
+
 refreshUser();
-loadPosts(true);
 loadFeatured();
 </script>
 <script src="notice.js"></script>

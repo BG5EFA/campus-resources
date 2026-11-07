@@ -8,10 +8,13 @@ CREATE TABLE IF NOT EXISTS posts (
     content TEXT NOT NULL,
     image VARCHAR(255) DEFAULT NULL,
     status TINYINT NOT NULL DEFAULT 0 COMMENT '0待审核 1已通过 2已拒绝',
+    featured TINYINT NOT NULL DEFAULT 0 COMMENT '0普通 1优质置顶',
+    featured_at DATETIME NULL,
     likes INT NOT NULL DEFAULT 0,
     user_id INT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_status_time (status, created_at),
+    INDEX idx_featured (featured, status),
     INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

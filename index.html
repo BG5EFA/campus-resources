@@ -90,6 +90,30 @@
   .preview{margin-top:8px;display:none}
   .preview img{max-width:120px;border-radius:10px;border:1px solid var(--line)}
 
+  /* 优质内容专区：管理员标记后自动置顶，卡片摘要展示 */
+  .hidden{display:none!important}
+  .feat-box{margin:14px 0 18px;padding:14px;border-radius:18px;
+    background:linear-gradient(135deg,#fff9e9,#fff 48%,#eef5ff);
+    border:1px solid #ffe2a8;box-shadow:0 8px 24px rgba(232,163,59,.14)}
+  .feat-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .feat-title{font-size:16px;font-weight:800;color:#a86a00}
+  .feat-sub{font-size:12px;color:var(--muted)}
+  .feat-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  @media(max-width:560px){ .feat-list{grid-template-columns:1fr} }
+  .feat-card{background:#fff;border:1px solid #ffe6bd;border-radius:14px;padding:10px 12px;
+    cursor:pointer;transition:.15s;overflow:hidden}
+  .feat-card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(232,163,59,.18)}
+  .feat-card-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .feat-star{font-size:11px;font-weight:700;color:#a86a00;background:#fff0c2;border-radius:8px;padding:2px 7px}
+  .feat-time{font-size:11px;color:var(--muted);margin-left:auto}
+  .feat-text{font-size:13px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .feat-card.expand .feat-text{display:block}
+  .feat-pic{display:block;max-width:120px;max-height:90px;object-fit:contain;border-radius:8px;
+    margin-top:8px;background:#f4f9ff}
+  .feat-foot{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font-size:11px;color:var(--muted)}
+  .feat-tip{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+
   /* 帖子 */
   .wall{margin-top:4px}
   .post{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin:12px 0;
@@ -100,6 +124,8 @@
   .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));
     color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;flex-shrink:0}
   .post .name{font-weight:700;font-size:15px}
+  .top-tag{display:inline-block;margin:2px 0 0;font-size:11px;font-weight:700;color:#a86a00;
+    background:#fff0c2;border-radius:8px;padding:2px 7px}
   .post .time{color:var(--muted);font-size:12px}
   .post .content{margin:10px 0;font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
   /* 配图统一缩略显示：横屏按宽度收、竖屏按高度收，点开可看原图 */
@@ -221,6 +247,13 @@
       </label>
       <button class="submit" id="submitBtn">发布</button>
     </div>
+  </section>
+
+  <!-- 优质内容专区：管理员标记后自动置顶展示 -->
+  <section class="feat-box hidden" id="featBox">
+    <div class="feat-head"><span class="feat-title">⭐ 优质内容</span><span class="feat-sub">管理员推荐 · 优先展示</span></div>
+    <div class="feat-list" id="featList"></div>
+    <div class="feat-tip">点卡片可展开全文，点图片看原图</div>
   </section>
 
   <div class="wall" id="wall"></div>
@@ -417,7 +450,9 @@ function renderPost(p){
   const avatar = (escName(p.nickname)[0]||'匿').toUpperCase();
   let html = '';
   html += '<div class="top"><div class="avatar">'+avatar+'</div>'+
-          '<div><div class="name"></div><div class="time"></div></div></div>';
+          '<div><div class="name"></div>'+
+          (Number(p.featured)===1? '<span class="top-tag">⭐ 优质</span>':'')+
+          '<div class="time"></div></div></div>';
   html += '<div class="content"></div>';
   const img = safeImg(p.image);
   if(img) html += '<img class="pic" src="'+img+'" alt="配图" title="点击查看原图" onerror="picFail(this)">';
@@ -589,9 +624,48 @@ document.getElementById('r_submit').addEventListener('click', async ()=>{
 
 document.getElementById('moreBtn').addEventListener('click', ()=>loadPosts(false));
 
+// ---------- 优质内容专区 ----------
+function renderFeatureCard(p){
+  const el=document.createElement('article'); el.className='feat-card';
+  const top=document.createElement('div'); top.className='feat-card-top';
+  const star=document.createElement('span'); star.className='feat-star'; star.textContent='⭐ 置顶';
+  const time=document.createElement('span'); time.className='feat-time';
+  time.textContent=fmtTime(p.featured_at||p.created_at);
+  top.appendChild(star); top.appendChild(time);
+  const txt=document.createElement('div'); txt.className='feat-text'; txt.textContent=p.content||'';
+  el.appendChild(top); el.appendChild(txt);
+  const img=safeImg(p.image);
+  if(img){
+    const pic=document.createElement('img'); pic.className='feat-pic'; pic.src=img; pic.alt='配图';
+    pic.title='点击查看原图';
+    pic.addEventListener('error', ()=>picFail(pic));
+    pic.addEventListener('click', e=>{ e.stopPropagation(); openPic(pic.src); });
+    el.appendChild(pic);
+  }
+  const foot=document.createElement('div'); foot.className='feat-foot';
+  const who=document.createElement('span'); who.textContent='from '+escName(p.nickname);
+  const nums=document.createElement('span'); nums.textContent='❤ '+(p.likes||0)+'  💬 '+(p.comment_count||0);
+  foot.appendChild(who); foot.appendChild(nums); el.appendChild(foot);
+  el.addEventListener('click', ()=>el.classList.toggle('expand'));
+  return el;
+}
+async function loadFeatured(){
+  const box=document.getElementById('featBox');
+  try{
+    const r=await fetch(API+'?action=featured_list&board=0');
+    const d=await r.json();
+    const list=(d&&d.ok&&d.posts)||[];
+    if(!list.length){ box.classList.add('hidden'); return; }
+    const wrap=document.getElementById('featList'); wrap.textContent='';
+    list.forEach(p=>wrap.appendChild(renderFeatureCard(p)));
+    box.classList.remove('hidden');
+  }catch(_){ box.classList.add('hidden'); }
+}
+
 // 初始化
 refreshUser();
 loadPosts(true);
+loadFeatured();
 </script>
 <script src="notice.js"></script>
 </body>

@@ -178,6 +178,22 @@
   .mini-mask .m-acts button{flex:1;padding:10px;border-radius:10px;border:none;cursor:pointer;font-size:14px}
   .mini-mask .m-ok{background:var(--pink);color:#fff}
   .mini-mask .m-cancel{background:#f3eef0;color:var(--text)}
+  /* 运营概览 / 举报处理 */
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:12px 0}
+  .ov-card{background:#fff0f6;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .ov-card b{display:block;font-size:24px;color:var(--pink-d);line-height:1.3}
+  .ov-card span{font-size:12px;color:var(--muted)}
+  .trend{display:flex;align-items:flex-end;gap:8px;height:120px;padding:8px 4px 0}
+  .trend .tb{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%}
+  .trend .tb i{display:block;width:100%;max-width:34px;background:linear-gradient(180deg,var(--pink),#ffd0e2);border-radius:6px 6px 0 0;min-height:3px}
+  .trend .tb span{font-size:11px;color:var(--muted)}
+  .trend .tb em{font-size:11px;font-style:normal;color:var(--pink-d);font-weight:700}
+  .ov-list div{padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;display:flex;gap:8px;align-items:baseline}
+  .ov-list div:last-child{border-bottom:none}
+  .ov-list b{color:var(--pink-d);white-space:nowrap}
+  .rep-reason{font-size:12px;color:var(--muted);margin-top:3px;white-space:pre-wrap;word-break:break-word}
+  .pend-row .act-takedown{background:#ff6b6b!important}
+  .pend-row .act-ignore{background:#9aa4b2!important}
 </style>
 </head>
 <body>
@@ -203,11 +219,13 @@
       <button data-tab="posts">📝 发布内容 <span class="tab-badge zero" id="badgePosts">0</span></button>
       <button data-tab="featured">⭐ 优质内容 <span class="tab-badge zero" id="badgeFeatured">0</span></button>
       <button data-tab="comments">💬 评论审核 <span class="tab-badge zero" id="badgeComments">0</span></button>
+      <button data-tab="reports">⚑ 举报处理 <span class="tab-badge alert" id="badgeReports">0</span></button>
       <button data-tab="materials">📚 学习专区 <span class="tab-badge zero" id="badgeMats">0</span></button>
       <button data-tab="users">👥 用户管理</button>
       <button data-tab="invites">🎫 邀请码</button>
       <button data-tab="badwords">🚫 敏感词</button>
       <button data-tab="changelog">📢 更新修复日志</button>
+      <button data-tab="overview">📊 运营概览</button>
     </nav>
     <div class="stats" id="stats"></div>
 
@@ -241,6 +259,13 @@
           <button class="btn ghost" data-go="materials" style="margin-left:auto">去处理 →</button>
         </div>
         <div id="pendingMats"></div>
+      </div>
+      <div class="panel">
+        <div class="up-head">
+          <h2>⚑ 待处理举报 <span class="cnt" id="pendRepCount">0</span></h2>
+          <button class="btn ghost" data-go="reports" style="margin-left:auto">去处理 →</button>
+        </div>
+        <div id="pendingReports"></div>
       </div>
     </section>
 
@@ -354,6 +379,36 @@
         <p class="bw-tip">在「📝 发布内容」或「🔴 待处理」里点 <b>⭐ 设优质</b>，即可一键通过审核并自动置顶到校园墙顶部的优质内容专区。这里可随时取消置顶；最近标记的排在最前面，无需手动排序。</p>
       </div>
       <div id="featuredList"></div>
+    </section>
+
+    <!-- ===== 模块：举报处理 ===== -->
+    <section class="hidden" data-mod="reports">
+      <div class="panel">
+        <div class="up-head">
+          <h2>⚑ 举报处理 <span class="cnt" id="repCount">0</span></h2>
+          <button class="btn ghost" id="refreshReports" style="margin-left:auto">刷新</button>
+        </div>
+        <p class="bw-tip">同学在前台点「⚑ 举报」后会汇总到这里。「下架并处理」会同时把该内容下架并取消置顶；「忽略」则保留内容。</p>
+      </div>
+      <div id="reportList"></div>
+    </section>
+
+    <!-- ===== 模块：运营概览 ===== -->
+    <section class="hidden" data-mod="overview">
+      <div class="panel">
+        <div class="up-head">
+          <h2>📊 运营概览</h2>
+          <button class="btn ghost" id="refreshOverview" style="margin-left:auto">刷新</button>
+        </div>
+        <p class="bw-tip">数据来自站点数据库实时统计，无需埋点；趋势为最近 7 天每日新发布内容数。</p>
+        <div class="ov-grid" id="ovCards"></div>
+        <h3 style="font-size:14px;margin:14px 0 6px">最近 7 天发布趋势</h3>
+        <div class="trend" id="ovTrend"></div>
+      </div>
+      <div class="panel">
+        <h2>🔥 点赞最多的内容</h2>
+        <div class="ov-list" id="ovTop"></div>
+      </div>
     </section>
 
     <div id="list" class="hidden" data-mod="posts"></div>
@@ -483,7 +538,8 @@
 
 <script>
 const API = 'api.php';
-let token = localStorage.getItem('bb_token') || '';
+// 后台 token 与前台用户 token 分键存储，避免管理员打开前台时被 /me 的 401 清掉登录态
+let token = localStorage.getItem('bb_admin_token') || '';
 let curStatus = '';
 
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');
@@ -657,14 +713,14 @@ document.getElementById('loginBtn').addEventListener('click',async ()=>{
     const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'action=admin_login&username='+encodeURIComponent(u)+'&password='+encodeURIComponent(pw)});
     const d=await r.json();
-    if(d.ok){ token=d.token; localStorage.setItem('bb_token',token); bootDash(); }
+    if(d.ok){ token=d.token; localStorage.setItem('bb_admin_token',token); bootDash(); }
     else toast(d.msg);
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='登录'; }
 });
 
 document.getElementById('logoutBtn').addEventListener('click',doLogout);
-function doLogout(){ token=''; localStorage.removeItem('bb_token'); showDash(false); }
+function doLogout(){ token=''; localStorage.removeItem('bb_admin_token'); showDash(false); }
 
 document.getElementById('genInviteBtn').addEventListener('click',async ()=>{
   const count=document.getElementById('invCount').value;
@@ -1198,7 +1254,9 @@ const MOD_LOADERS = {
   users:     () => loadUsers(),
   invites:   () => loadInvites(),
   badwords:  () => loadBadwords(),
-  changelog: () => loadChangelogAdmin()
+  changelog: () => loadChangelogAdmin(),
+  reports:   () => loadReports(),
+  overview:  () => loadOverview()
 };
 function switchMod(name){
   if(!MOD_LOADERS[name]) name = 'pending';
@@ -1230,6 +1288,91 @@ document.addEventListener('click', e => {
   switchMod(b.dataset.go);
 });
 document.getElementById('refreshPending').addEventListener('click', loadPending);
+
+// ===== 举报处理 ==========================================================
+async function adminPostParams(params){
+  try{
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body:params});
+    if(r.status===401){ doLogout(); return {ok:false}; }
+    return await r.json();
+  }catch(_){ return {ok:false,msg:'网络错误'}; }
+}
+async function loadReports(){
+  const box=document.getElementById('reportList');
+  if(!box) return;
+  box.innerHTML='<div class="empty">加载中…</div>';
+  try{
+    const d=await adminGet(API+'?action=admin_report_list&status=0');
+    const list=(d&&d.ok&&d.reports)||[];
+    setBadge('badgeReports',list.length,true);
+    const c=document.getElementById('repCount'); if(c) c.textContent=list.length;
+    box.textContent='';
+    if(!list.length) box.innerHTML='<div class="pend-empty">✅ 没有待处理的举报</div>';
+    else list.forEach(r=>box.appendChild(renderReportRow(r)));
+  }catch(_){ box.innerHTML='<div class="empty">加载失败，请刷新重试</div>'; }
+}
+function renderReportRow(r){
+  const el=document.createElement('div'); el.className='pend-row';
+  const boards=['校园墙','树洞','论坛'];
+  el.innerHTML='<div class="pr-main"><div class="pr-t"></div><div class="pr-s"></div><div class="rep-reason"></div></div>'+
+    '<button class="act-takedown">下架并处理</button><button class="act-ignore">忽略</button>';
+  el.querySelector('.pr-t').textContent='⚑ '+(r.excerpt||'（内容已删除）');
+  el.querySelector('.pr-s').textContent=(boards[Number(r.board)]||'校园墙')+' · '+(r.nickname||'匿名')+
+    ' · '+fmt(r.created_at)+' · IP '+(r.ip||'-');
+  el.querySelector('.rep-reason').textContent=r.reason ? '原因：'+r.reason : '未填写原因';
+  el.querySelector('.act-takedown').addEventListener('click',()=>handleReport(r.id,1,'确定下架这条内容并标记举报已处理？内容会立刻从前台消失。'));
+  el.querySelector('.act-ignore').addEventListener('click',()=>handleReport(r.id,2,'确定忽略这条举报？内容会保留。'));
+  return el;
+}
+async function handleReport(id,value,msg){
+  if(!confirm(msg)) return;
+  const d=await adminPostParams('action=admin_report_handle&id='+id+'&value='+value);
+  toast(d.msg||'已处理');
+  if(d.ok){ loadReports(); loadPending(); loadList(); }
+}
+
+// ===== 运营概览 ==========================================================
+async function loadOverview(){
+  try{
+    const r=await fetch(API+'?action=admin_stats',{headers:authHeaders()});
+    if(r.status===401){ doLogout(); return; }
+    const d=await r.json(); if(!d.ok) return;
+    const s=d.stats;
+    const cards=[
+      ['今日发布',s.today_posts||0],['今日评论',s.today_comments||0],['今日新用户',s.today_users||0],
+      ['近 7 天发布',s.week_posts||0],['待处理举报',s.reports||0],['优质内容',s.featured||0],
+      ['累计用户',s.users||0],['累计评论',s.comments||0]
+    ];
+    const box=document.getElementById('ovCards'); box.textContent='';
+    cards.forEach(pair=>{
+      const el=document.createElement('div'); el.className='ov-card';
+      const b=document.createElement('b'); b.textContent=pair[1];
+      const sp=document.createElement('span'); sp.textContent=pair[0];
+      el.appendChild(b); el.appendChild(sp); box.appendChild(el);
+    });
+    const tr=document.getElementById('ovTrend'); tr.textContent='';
+    const trend=s.trend||[];
+    const max=Math.max(1,...trend.map(x=>Number(x.count)||0));
+    trend.forEach(x=>{
+      const col=document.createElement('div'); col.className='tb';
+      const em=document.createElement('em'); em.textContent=x.count;
+      const bar=document.createElement('i'); bar.style.height=Math.max(3,Math.round((Number(x.count)||0)/max*72))+'px';
+      const sp=document.createElement('span'); sp.textContent=x.date;
+      col.appendChild(em); col.appendChild(bar); col.appendChild(sp); tr.appendChild(col);
+    });
+    const top=document.getElementById('ovTop'); top.textContent='';
+    const tops=s.top_posts||[];
+    if(!tops.length) top.textContent='暂无内容';
+    else tops.forEach((p,i)=>{
+      const row=document.createElement('div');
+      const b=document.createElement('b'); b.textContent='#'+(i+1)+' · ❤ '+(p.likes||0);
+      const sp=document.createElement('span'); sp.textContent=p.excerpt||'（无内容）';
+      row.appendChild(b); row.appendChild(sp); top.appendChild(row);
+    });
+  }catch(_){}
+}
+document.getElementById('refreshReports').addEventListener('click',loadReports);
+document.getElementById('refreshOverview').addEventListener('click',loadOverview);
 
 // ===== 待处理中心：汇总所有未审核内容，可就地通过 / 拒绝 ====================
 function setBadge(id, n, isAlert){
@@ -1301,30 +1444,36 @@ async function loadFeatured(){
 async function loadPending(){
   const boxP = document.getElementById('pendingPosts'),
         boxC = document.getElementById('pendingComments'),
-        boxM = document.getElementById('pendingMats');
-  [boxP, boxC, boxM].forEach(b => b.innerHTML = '<div class="empty">加载中…</div>');
+        boxM = document.getElementById('pendingMats'),
+        boxR = document.getElementById('pendingReports');
+  [boxP, boxC, boxM, boxR].forEach(b => b.innerHTML = '<div class="empty">加载中…</div>');
   try{
-    const [dp, dc, dm] = await Promise.all([
+    const [dp, dc, dm, dr] = await Promise.all([
       adminGet(API+'?action=admin_list&status=0'),
       adminGet(API+'?action=admin_comment_list&status=0'),
-      adminGet(API+'?action=admin_material_list&status=0')
+      adminGet(API+'?action=admin_material_list&status=0'),
+      adminGet(API+'?action=admin_report_list&status=0')
     ]);
     const posts = (dp && dp.ok && dp.posts) || [];
     const cmts  = (dc && dc.ok && dc.comments) || [];
     const mats  = (dm && dm.ok && dm.materials) || [];
-    const total = posts.length + cmts.length + mats.length;
+    const reps  = (dr && dr.ok && dr.reports) || [];
+    const total = posts.length + cmts.length + mats.length + reps.length;
     setBadge('badgePending', total, true);
     setBadge('badgePosts', posts.length);
     setBadge('badgeComments', cmts.length);
     setBadge('badgeMats', mats.length);
+    setBadge('badgeReports', reps.length, true);
     document.getElementById('pendPostCount').textContent = posts.length;
     document.getElementById('pendCmtCount').textContent  = cmts.length;
     document.getElementById('pendMatCount').textContent  = mats.length;
+    document.getElementById('pendRepCount').textContent  = reps.length;
     document.getElementById('pendingSum').innerHTML =
       psCard(total, '全部待处理', 'pending') +
       psCard(posts.length, '待审发布内容', 'posts') +
       psCard(cmts.length, '待审评论', 'comments') +
-      psCard(mats.length, '待审资料', 'materials');
+      psCard(mats.length, '待审资料', 'materials') +
+      psCard(reps.length, '待处理举报', 'reports');
 
     boxP.textContent = '';
     if(!posts.length) boxP.innerHTML = '<div class="pend-empty">✅ 没有待审核的发布内容</div>';
@@ -1335,8 +1484,11 @@ async function loadPending(){
     boxM.textContent = '';
     if(!mats.length) boxM.innerHTML = '<div class="pend-empty">✅ 没有待审核的资料</div>';
     else mats.forEach(m => boxM.appendChild(renderPendingMat(m)));
+    boxR.textContent = '';
+    if(!reps.length) boxR.innerHTML = '<div class="pend-empty">✅ 没有待处理举报</div>';
+    else reps.slice(0,3).forEach(r => boxR.appendChild(renderReportRow(r)));
   }catch(_){
-    [boxP, boxC, boxM].forEach(b => b.innerHTML = '<div class="empty">加载失败，点右上角刷新重试</div>');
+    [boxP, boxC, boxM, boxR].forEach(b => b.innerHTML = '<div class="empty">加载失败，点右上角刷新重试</div>');
   }
 }
 

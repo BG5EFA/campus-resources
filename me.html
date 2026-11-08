@@ -101,6 +101,7 @@
         <button data-sub="forum">论坛</button>
         <button data-sub="qa">问答</button>
         <button data-sub="mat">资料</button>
+        <button data-sub="fav">⭐ 收藏</button>
       </div>
       <div id="contentList"></div>
     </div>
@@ -140,6 +141,7 @@
 
 <script>
 const API='api.php';let TOKEN=localStorage.getItem('bb_token')||'',ME=null,curSub='all',myData=null;
+const CAT_LBL={love:'👤 寻人',lost:'🔎 寻物',help:'🙋 求助',chat:'💬 吐槽',other:'✨ 其他'};
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 function esc(s){return s==null?'':String(s);}
 function stLabel(s){return s==1?'<span class="st st1">已通过</span>':(s==2?'<span class="st st2">已拒绝</span>':'<span class="st st0">审核中</span>');}
@@ -159,7 +161,23 @@ setTab();
 document.querySelectorAll('#panel-content .tabs button[data-sub]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#panel-content .tabs button[data-sub]').forEach(x=>x.classList.remove('active'));b.classList.add('active');curSub=b.dataset.sub;renderContent();});
 
 function fmtTime(s){if(!s)return '';return String(s).replace('T',' ').slice(0,16);}
-function renderContent(){const box=document.getElementById('contentList');if(!myData){box.innerHTML='<div class="empty">加载中…</div>';return;}const rows=[];
+function renderFavorites(box){
+  const list=(myData&&myData.favorites)||[];
+  if(!list.length){box.innerHTML='<div class="empty">还没有收藏，去校园墙点「☆ 收藏」吧～</div>';return;}
+  box.textContent='';
+  list.forEach(p=>{
+    const el=document.createElement('div');el.className='item';
+    const h=document.createElement('div');h.className='h';h.textContent=p.title||'校园墙内容';
+    const ex=document.createElement('div');ex.className='ex';ex.textContent=p.content||'';
+    const meta=document.createElement('div');meta.className='meta';
+    const tm=document.createElement('span');tm.textContent='收藏于 '+fmtTime(p.favorited_at||p.created_at);meta.appendChild(tm);
+    const c=document.createElement('span');c.textContent=CAT_LBL[p.category]||'校园墙';meta.appendChild(c);
+    const btn=document.createElement('button');btn.className='btn-ghost';btn.style.cssText='margin-top:8px;padding:5px 12px;font-size:12px';btn.textContent='★ 取消收藏';
+    btn.onclick=async()=>{btn.disabled=true;try{const fd=new FormData();fd.append('action','favorite_toggle');fd.append('post_id',p.id);fd.append('token',TOKEN);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast(d.msg||'已取消收藏');loadMy();}else toast(d.msg||'操作失败');}catch(_){toast('网络错误');}finally{btn.disabled=false;}};
+    el.appendChild(h);el.appendChild(ex);el.appendChild(meta);el.appendChild(btn);box.appendChild(el);
+  });
+}
+function renderContent(){const box=document.getElementById('contentList');if(!myData){box.innerHTML='<div class="empty">加载中…</div>';return;}if(curSub==='fav'){renderFavorites(box);return;}const rows=[];
   if(curSub==='all'||curSub==='post'){(myData.posts||[]).forEach(p=>{const lbl=p.board==2?'论坛':(p.board==1?'树洞':'校园墙');rows.push({h:(p.title?p.title:lbl),ex:p.content,meta:[lbl,p.status!=null?stLabel(p.status):'',fmtTime(p.created_at)],k:'post'});});}
   if(curSub==='all'||curSub==='forum'){(myData.topics||[]).forEach(t=>rows.push({h:t.title,ex:'',meta:['论坛','💬 '+(t.reply_count||0),fmtTime(t.created_at),t.status!=null?stLabel(t.status):''],k:'forum'}));}
   if(curSub==='all'||curSub==='qa'){(myData.questions||[]).forEach(q=>rows.push({h:q.title,ex:'',meta:['问答','💬 '+(q.answer_count||0),fmtTime(q.created_at)],k:'qa'}));}
@@ -167,7 +185,7 @@ function renderContent(){const box=document.getElementById('contentList');if(!my
   if(rows.length===0){box.innerHTML='<div class="empty">这里还没有内容～</div>';return;}
   box.innerHTML='';rows.forEach(r=>{const el=document.createElement('div');el.className='item';el.innerHTML='<div class="h"></div>'+(r.ex?'<div class="ex"></div>':'')+'<div class="meta"></div>';el.querySelector('.h').textContent=r.h;if(r.ex)el.querySelector('.ex').textContent=r.ex;const meta=el.querySelector('.meta');r.meta.filter(Boolean).forEach(tx=>{const s=document.createElement('span');s.innerHTML=tx;meta.appendChild(s);});box.appendChild(el);});}
 
-async function loadMy(){const r=await fetch(API+'?action=my_content&token='+encodeURIComponent(TOKEN));const d=await r.json();if(!d.ok){toast(d.msg||'加载失败');return;}myData=d;renderContent();}
+async function loadMy(){const [r1,r2]=await Promise.all([fetch(API+'?action=my_content&token='+encodeURIComponent(TOKEN)),fetch(API+'?action=favorite_list&token='+encodeURIComponent(TOKEN))]);const d=await r1.json();if(!d.ok){toast(d.msg||'加载失败');return;}let favs=[];try{const f=await r2.json();if(f.ok)favs=f.list||[];}catch(_){}myData=d;myData.favorites=favs;renderContent();}
 async function loadNoti(){const r=await fetch(API+'?action=notifications&token='+encodeURIComponent(TOKEN));const d=await r.json();if(!d.ok){toast(d.msg||'加载失败');return;}const box=document.getElementById('notiList');const unread=d.unread||0;const dot=document.getElementById('unreadDot');if(unread>0){dot.style.display='inline-block';dot.textContent=unread;}else dot.style.display='none';if(!d.notifications||d.notifications.length===0){box.innerHTML='<div class="empty">暂无消息</div>';return;}box.innerHTML='';d.notifications.forEach(n=>{const el=document.createElement('div');el.className='noti'+(n.is_read?'':' unread');el.innerHTML='<div class="msg"></div><div class="time">'+fmtTime(n.created_at)+'</div>'+(n.is_read?'':'<span class="badge-un"></span>');el.querySelector('.msg').textContent=n.message;el.onclick=async()=>{if(!n.is_read){await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=notifications_read&id='+n.id+'&token='+encodeURIComponent(TOKEN)});loadNoti();}};box.appendChild(el);});}
 document.getElementById('readAll').onclick=async()=>{await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=notifications_read&token='+encodeURIComponent(TOKEN)});toast('已全部标记为已读');loadNoti();};
 document.getElementById('saveBtn').onclick=async()=>{const nick=document.getElementById('nick').value.trim();const oldpw=document.getElementById('oldpw').value,newpw=document.getElementById('newpw').value;const fd=new FormData();fd.append('action','profile_update');if(nick)fd.append('nickname',nick);if(newpw){if(!oldpw){toast('修改密码需填写原密码');return;}fd.append('old_password',oldpw);fd.append('new_password',newpw);}if(TOKEN)fd.append('token',TOKEN);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast('已更新');ME=d;renderAuth();document.getElementById('oldpw').value='';document.getElementById('newpw').value='';}else toast(d.msg);};

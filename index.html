@@ -79,6 +79,9 @@
   .row input[type=text]:focus{border-color:var(--blue)}
   .anon{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
   .anon input{width:15px;height:15px;accent-color:var(--blue)}
+  .login-tip{margin:0 0 10px;padding:9px 12px;border:1px dashed #b9d2ff;background:#f4f9ff;border-radius:10px;font-size:13px;color:#42608f;line-height:1.5}
+  .login-tip b{color:#1a53c9;cursor:pointer}
+  .login-tip.hidden{display:none}
   .file-btn{position:relative;overflow:hidden;border:1px dashed var(--blue);color:var(--blue-d);
     border-radius:10px;padding:9px 12px;font-size:13px;cursor:pointer}
   .file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
@@ -251,6 +254,7 @@
   </header>
 
   <section class="composer">
+    <div class="login-tip hidden" id="loginTip">🔒 发布内容需要先 <b id="tipLogin">登录</b>；登录后可以勾选「匿名」，同学们只会看到「匿名」，管理员仍可查看真实发布者。</div>
     <textarea id="content" maxlength="500" placeholder="写下你想说的悄悄话…（1-500字）"></textarea>
     <div class="preview" id="preview"><img id="previewImg" alt="预览"></div>
     <div class="row">
@@ -261,8 +265,8 @@
         <option value="chat">💬 吐槽</option>
         <option value="other" selected>✨ 其他</option>
       </select>
-      <input type="text" id="nickname" maxlength="50" placeholder="昵称（留空则匿名）">
-      <label class="anon"><input type="checkbox" id="anon"> 匿名</label>
+      <input type="text" id="nickname" maxlength="50" placeholder="昵称（留空用账号昵称）">
+      <label class="anon" title="勾选后校园墙只显示「匿名」，管理员仍可在后台查看真实发布者"><input type="checkbox" id="anon"> 匿名（管理员可溯源）</label>
       <label class="file-btn" title="支持 jpg / png / gif / webp，单张 ≤10MB">📷 图片 ≤10MB
         <input type="file" id="image" accept="image/jpeg,image/png,image/gif,image/webp">
       </label>
@@ -346,7 +350,7 @@
     <input type="text" id="r_nick" placeholder="昵称" maxlength="50">
     <label>密码（至少6位）</label>
     <input type="password" id="r_pwd" placeholder="密码" autocomplete="new-password">
-    <label>邀请码（必填）</label>
+    <label>邀请码（注册必填）</label>
     <input type="text" id="r_inv" placeholder="请输入邀请码" maxlength="32" autocomplete="off">
     <label>验证码</label>
     <div class="captcha-row">
@@ -373,6 +377,13 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'), 1800);
 }
 function escName(n){ return (n || '匿名'); }
+// 后端发布门禁返回 need_login 时统一引导登录（顺带清理过期登录态）
+function handleLoginRequired(d){
+  if(!d || !d.need_login) return false;
+  TOKEN=''; ME=null; localStorage.removeItem('bb_token');
+  renderAuth(); toast(d.msg || '请先登录后再发布'); openAuth('login');
+  return true;
+}
 function fmtTime(s){
   const d = new Date(s.replace(' ','T')+'Z');
   if(isNaN(d)) return s;
@@ -418,6 +429,8 @@ function renderAuth(){
     document.getElementById('regBtn').addEventListener('click', ()=>openAuth('reg'));
     document.getElementById('nickname').value = '';
   }
+  const tip = document.getElementById('loginTip');
+  if(tip) tip.classList.toggle('hidden', !!TOKEN);
   loadPosts(true);   // 登录状态确定后再渲染，保证「删除自己的内容」按钮正确
 }
 function logout(){
@@ -499,7 +512,7 @@ function renderPost(p){
   el.className = 'post';
   const avatar = escHtml(String(escName(p.nickname)[0]||'匿').toUpperCase());
   const catLabel = CATS[p.category] || CATS.other;
-  const mine = !!(ME && p.user_id && Number(p.user_id) === Number(ME.id));
+  const mine = Number(p.is_mine) === 1; // 公开接口不返回作者 ID，仅告知本人
   let html = '';
   html += '<div class="top"><div class="avatar">'+avatar+'</div>'+
           '<div><div class="name"></div>'+
@@ -548,6 +561,7 @@ function renderPost(p){
     const inp = el.querySelector('.cmt-form input');
     const v = inp.value.trim();
     if(!v) return;
+    if(!TOKEN){ toast('请先登录后再评论'); openAuth('login'); return; }
     const fd = new FormData();
     fd.append('action','comment_add');
     fd.append('post_id', p.id);
@@ -557,7 +571,7 @@ function renderPost(p){
     const r = await fetch(API, {method:'POST', body:fd});
     const d = await r.json();
     if(d.ok){ inp.value=''; toast(d.msg); }   // 评论进入审核，不即时上屏/不计数的
-    else toast(d.msg);
+    else if(!handleLoginRequired(d)) toast(d.msg);
   });
 
   const delBtn = el.querySelector('.act-del');
@@ -625,6 +639,7 @@ imgInput.addEventListener('change', ()=>{
 });
 
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
+  if(!TOKEN){ toast('请先登录后再发布（登录后仍可匿名）'); openAuth('login'); return; }
   const content = document.getElementById('content').value.trim();
   if(!content){ toast('内容不能为空'); return; }
   const imgErr = checkImage(imgInput.files[0]);
@@ -649,7 +664,7 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
       document.getElementById('nickname').value = ME ? ME.nickname : '';
       imgInput.value=''; clearPreview();
       loadPosts(true);
-    } else toast(d.msg || '发布失败，请稍后重试');
+    } else if(!handleLoginRequired(d)) toast(d.msg || '发布失败，请稍后重试');
   }catch(_){ toast('网络错误，请检查网络后重试'); }
   finally{ btn.disabled=false; btn.textContent='发布'; }
 });
@@ -768,6 +783,7 @@ document.getElementById('reportSubmit').addEventListener('click', async ()=>{
   finally{ btn.disabled = false; }
 });
 
+document.getElementById('tipLogin').addEventListener('click', ()=>openAuth('login'));
 refreshUser();
 loadFeatured();
 </script>

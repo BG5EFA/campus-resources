@@ -79,9 +79,16 @@
   .row input[type=text]:focus{border-color:var(--blue)}
   .anon{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
   .anon input{width:15px;height:15px;accent-color:var(--blue)}
-  .login-tip{margin:0 0 10px;padding:9px 12px;border:1px dashed #b9d2ff;background:#f4f9ff;border-radius:10px;font-size:13px;color:#42608f;line-height:1.5}
-  .login-tip b{color:#1a53c9;cursor:pointer}
-  .login-tip.hidden{display:none}
+  /* 未登录时只显示登录入口，发布框登录后才可见 */
+  .login-gate{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 2px}
+  .login-gate .gate-ico{font-size:22px;line-height:1}
+  .login-gate .gate-txt{flex:1;min-width:170px;display:flex;flex-direction:column;gap:3px}
+  .login-gate .gate-txt b{font-size:15px;color:var(--blue-d)}
+  .login-gate .gate-txt span{font-size:12px;color:var(--muted);line-height:1.5}
+  .gate-btn{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;
+    border-radius:10px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;
+    box-shadow:0 6px 16px var(--glow);font-family:inherit}
+  .gate-btn:hover{filter:brightness(1.06)}
   .file-btn{position:relative;overflow:hidden;border:1px dashed var(--blue);color:var(--blue-d);
     border-radius:10px;padding:9px 12px;font-size:13px;cursor:pointer}
   .file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
@@ -154,9 +161,14 @@
   .comments.show{display:block}
   .cmt{font-size:14px;line-height:1.5;margin:6px 0;padding:8px 10px;background:#f4f9ff;border-radius:10px}
   .cmt b{color:var(--blue-d)}
-  .cmt-form{display:flex;gap:8px;margin-top:8px}
-  .cmt-form input{flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#f7fbff}
+  .cmt-form{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
+  .cmt-form input[type=text]{flex:1;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#f7fbff}
   .cmt-form button{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:9px;padding:0 14px;font-size:13px;cursor:pointer}
+  .cmt-form .anon{font-size:12px;flex-shrink:0}
+  .cmt-gate{margin-top:8px;padding:8px 10px;border:1px dashed #b9d2ff;background:#f4f9ff;
+    border-radius:9px;font-size:12px;color:#42608f;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cmt-gate button{border:1px solid #cfe0ff;background:#fff;color:var(--blue-d);border-radius:8px;
+    padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
 
   .more{display:block;width:100%;margin:16px 0;padding:12px;background:#fff;border:1px solid var(--line);
     border-radius:12px;color:var(--blue-d);font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(47,123,255,.06)}
@@ -254,23 +266,32 @@
   </header>
 
   <section class="composer">
-    <div class="login-tip hidden" id="loginTip">🔒 发布内容需要先 <b id="tipLogin">登录</b>；登录后可以勾选「匿名」，同学们只会看到「匿名」，管理员仍可查看真实发布者。</div>
-    <textarea id="content" maxlength="500" placeholder="写下你想说的悄悄话…（1-500字）"></textarea>
-    <div class="preview" id="preview"><img id="previewImg" alt="预览"></div>
-    <div class="row">
-      <select class="cat-sel" id="category" aria-label="投稿分类">
-        <option value="love">💌 表白</option>
-        <option value="lost">🔎 寻物</option>
-        <option value="help">🙋 求助</option>
-        <option value="chat">💬 吐槽</option>
-        <option value="other" selected>✨ 其他</option>
-      </select>
-      <input type="text" id="nickname" maxlength="50" placeholder="昵称（留空用账号昵称）">
-      <label class="anon" title="勾选后校园墙只显示「匿名」，管理员仍可在后台查看真实发布者"><input type="checkbox" id="anon"> 匿名（管理员可溯源）</label>
-      <label class="file-btn" title="支持 jpg / png / gif / webp，单张 ≤10MB">📷 图片 ≤10MB
-        <input type="file" id="image" accept="image/jpeg,image/png,image/gif,image/webp">
-      </label>
-      <button class="submit" id="submitBtn">发布</button>
+    <div class="login-gate" id="loginGate">
+      <div class="gate-ico">🔒</div>
+      <div class="gate-txt">
+        <b>登录后才能发布内容</b>
+        <span>登录后可勾选「匿名」，同学们只会看到「匿名」</span>
+      </div>
+      <button class="gate-btn" id="gateLogin" type="button">登录 / 注册</button>
+    </div>
+    <div class="hidden" id="composerBody">
+      <textarea id="content" maxlength="500" placeholder="写下你想说的悄悄话…（1-500字）"></textarea>
+      <div class="preview" id="preview"><img id="previewImg" alt="预览"></div>
+      <div class="row">
+        <select class="cat-sel" id="category" aria-label="投稿分类">
+          <option value="love">💌 表白</option>
+          <option value="lost">🔎 寻物</option>
+          <option value="help">🙋 求助</option>
+          <option value="chat">💬 吐槽</option>
+          <option value="other" selected>✨ 其他</option>
+        </select>
+        <input type="text" id="nickname" maxlength="50" placeholder="昵称（留空用账号昵称）">
+        <label class="anon" title="勾选后校园墙只显示「匿名」"><input type="checkbox" id="anon"> 匿名</label>
+        <label class="file-btn" title="支持 jpg / png / gif / webp，单张 ≤10MB">📷 图片 ≤10MB
+          <input type="file" id="image" accept="image/jpeg,image/png,image/gif,image/webp">
+        </label>
+        <button class="submit" id="submitBtn">发布</button>
+      </div>
     </div>
   </section>
 
@@ -429,9 +450,12 @@ function renderAuth(){
     document.getElementById('regBtn').addEventListener('click', ()=>openAuth('reg'));
     document.getElementById('nickname').value = '';
   }
-  const tip = document.getElementById('loginTip');
-  if(tip) tip.classList.toggle('hidden', !!TOKEN);
-  loadPosts(true);   // 登录状态确定后再渲染，保证「删除自己的内容」按钮正确
+  // 发布框：未登录只显示登录入口，登录后才展示完整的发布表单
+  const gate = document.getElementById('loginGate');
+  const composerBody = document.getElementById('composerBody');
+  if(gate) gate.classList.toggle('hidden', !!TOKEN);
+  if(composerBody) composerBody.classList.toggle('hidden', !TOKEN);
+  loadPosts(true);   // 登录状态确定后再渲染，保证「删除自己的内容」/评论框状态正确
 }
 function logout(){
   if(TOKEN){ fetch(API, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -528,10 +552,14 @@ function renderPost(p){
           '<button class="act-mini act-report" data-id="'+p.id+'">⚑ 举报</button>'+
           (mine ? '<button class="act-mini act-del" data-id="'+p.id+'">🗑 删除</button>' : '')+
           '</div>';
+  // 评论与发布同理：登录后才出现输入框，并带独立「匿名」勾选
+  const cmtForm = TOKEN
+    ? '<div class="cmt-form"><input type="text" placeholder="说点什么…" maxlength="200">'+
+      '<label class="anon" title="勾选后评论只显示「匿名」"><input type="checkbox" class="cmt-anon"> 匿名</label>'+
+      '<button>发送</button></div>'
+    : '<div class="cmt-gate">🔒 登录后才能评论 <button type="button" class="cmt-login">去登录</button></div>';
   html += '<div class="comments" data-id="'+p.id+'">'+
-          '<div class="cmt-list"></div>'+
-          '<div class="cmt-form"><input type="text" placeholder="说点什么…" maxlength="200">'+
-          '<button>发送</button></div></div>';
+          '<div class="cmt-list"></div>'+ cmtForm +'</div>';
   el.innerHTML = html;
   const pic = el.querySelector('.pic');
   if(pic) pic.addEventListener('click', () => openPic(pic.src));
@@ -557,8 +585,11 @@ function renderPost(p){
       box.dataset.loaded = '1';
     }
   });
-  el.querySelector('.cmt-form button').addEventListener('click', async ()=>{
-    const inp = el.querySelector('.cmt-form input');
+  const cmtLoginBtn = el.querySelector('.cmt-login');
+  if(cmtLoginBtn) cmtLoginBtn.addEventListener('click', ()=>openAuth('login'));
+  const cmtSend = el.querySelector('.cmt-form button');
+  if(cmtSend) cmtSend.addEventListener('click', async ()=>{
+    const inp = el.querySelector('.cmt-form input[type=text]');
     const v = inp.value.trim();
     if(!v) return;
     if(!TOKEN){ toast('请先登录后再评论'); openAuth('login'); return; }
@@ -567,7 +598,8 @@ function renderPost(p){
     fd.append('post_id', p.id);
     fd.append('content', v);
     if(TOKEN) fd.append('token', TOKEN);
-    if(document.getElementById('anon').checked) fd.append('anonymous','1');
+    const anonChk = el.querySelector('.cmt-anon');
+    if(anonChk && anonChk.checked) fd.append('anonymous','1');
     const r = await fetch(API, {method:'POST', body:fd});
     const d = await r.json();
     if(d.ok){ inp.value=''; toast(d.msg); }   // 评论进入审核，不即时上屏/不计数的
@@ -783,7 +815,7 @@ document.getElementById('reportSubmit').addEventListener('click', async ()=>{
   finally{ btn.disabled = false; }
 });
 
-document.getElementById('tipLogin').addEventListener('click', ()=>openAuth('login'));
+document.getElementById('gateLogin').addEventListener('click', ()=>openAuth('login'));
 refreshUser();
 loadFeatured();
 </script>

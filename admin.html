@@ -95,6 +95,7 @@
   .act-delete{background:var(--red)}
   .act-feature{background:#e8a33b}
   .act-unfeature{background:#8c93a8}
+  .act-anon{background:#8b6fb3}
   .empty{text-align:center;color:var(--muted);padding:30px 0}
   .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(58,44,51,.92);
     color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;
@@ -195,6 +196,8 @@
   .pend-row .act-takedown{background:#ff6b6b!important}
   .pend-row .act-ignore{background:#9aa4b2!important}
   .post-cat{font-size:11px;color:#1a53c9;background:#eaf2ff;border-radius:7px;padding:2px 7px;margin-left:6px;display:inline-block}
+  .post-cat.anon-tag{color:#8a5a00;background:#fff3cd}
+  .post-cat.pub-tag{color:#1f7a4d;background:#e3f7ec}
   .author-line{font-size:11px;color:#8a5a00;margin-top:4px;background:#fff6e0;border:1px solid #ffe4ad;border-radius:7px;padding:3px 7px;display:inline-block}
   .mini-mask select{width:100%;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;background:#fff}
 </style>
@@ -540,6 +543,17 @@
         <option value="other">✨ 其他</option>
       </select>
     </div>
+    <div id="ec_anon_wrap">
+      <label>匿名状态（管理员可随时调整）</label>
+      <select id="ec_anon">
+        <option value="0">👤 不匿名 · 前台显示昵称</option>
+        <option value="1">🕶 匿名 · 前台只显示「匿名」</option>
+      </select>
+      <div id="ec_nick_wrap" style="margin-top:8px">
+        <input type="text" id="ec_nick" maxlength="50" placeholder="前台显示昵称（留空自动用账号昵称）" autocomplete="off">
+      </div>
+      <p class="bw-tip" style="margin:6px 0 0">只影响前台显示，后台仍保留真实账号与 IP 溯源。</p>
+    </div>
     <label>正文</label>
     <textarea id="ec_content" rows="6" placeholder="正文内容"></textarea>
     <div class="m-acts">
@@ -621,8 +635,10 @@ function authorLine(p){
 function renderComment(c){
   const el = document.createElement('div'); el.className='post';
   const badges = ['待审核','已通过','已拒绝'];
+  const cAnon = Number(c.is_anon)===1;
   let html = '<div class="top"><div class="avatar">'+(esc(c.nickname)[0]||'匿').toUpperCase()+'</div>'+
-    '<div><div class="name">'+esc(c.nickname)+'<span class="badge s'+c.status+'">'+badges[c.status]+'</span></div>'+
+    '<div><div class="name">'+esc(c.nickname)+'<span class="badge s'+c.status+'">'+badges[c.status]+'</span>'+
+    '<span class="post-cat '+(cAnon?'anon-tag':'pub-tag')+'">'+(cAnon?'🕶 前台匿名':'👤 前台显示昵称')+'</span></div>'+
     '<div class="time">'+fmt(c.created_at)+(c.ip?' · IP '+esc(c.ip):'')+'</div>'+
     '<div class="sub">所属：'+(esc(c.post_title)||'校园墙内容')+'</div>'+
     '<div class="author-line">'+authorLine(c)+'</div></div></div>';
@@ -630,11 +646,13 @@ function renderComment(c){
   html += '<div class="acts">'+
     (c.status!==1?'<button class="act-approve" data-id="'+c.id+'">✓ 通过</button>':'')+
     (c.status!==2?'<button class="act-reject" data-id="'+c.id+'">✕ 拒绝</button>':'')+
+    '<button class="act-anon" data-id="'+c.id+'">'+(cAnon?'👤 取消匿名':'🕶 设为匿名')+'</button>'+
     '<button class="act-delete" data-id="'+c.id+'">🗑 删除</button></div>';
   el.innerHTML = html;
   el.querySelector('.content').textContent = c.content;
   el.querySelector('.act-approve')?.addEventListener('click',()=>commentAct('admin_comment_approve',c.id));
   el.querySelector('.act-reject')?.addEventListener('click',()=>commentAct('admin_comment_reject',c.id));
+  el.querySelector('.act-anon')?.addEventListener('click',()=>toggleAnon('comment',c.id,cAnon?0:1));
   el.querySelector('.act-delete')?.addEventListener('click',()=>{ if(confirm('确定删除这条评论？')) commentAct('admin_comment_delete',c.id); });
   return el;
 }
@@ -672,10 +690,12 @@ function render(p){
   const el=document.createElement('div');el.className='post';
   const badges=['待审核','已通过','已拒绝'];
   const isFeat=Number(p.featured)===1;
+  const isAnon=Number(p.is_anon)===1;
   let html='<div class="top"><div class="avatar">'+(esc(p.nickname)[0]||'匿').toUpperCase()+'</div>'+
     '<div><div class="name">'+''+'<span class="badge s'+p.status+'">'+badges[p.status]+'</span>'+
     (isFeat? '<span class="badge star">⭐ 优质</span>':'')+
-    '<span class="post-cat">'+esc(CAT_LABEL[p.category]||CAT_LABEL.other)+'</span></div>'+
+    '<span class="post-cat">'+esc(CAT_LABEL[p.category]||CAT_LABEL.other)+'</span>'+
+    '<span class="post-cat '+(isAnon?'anon-tag':'pub-tag')+'">'+(isAnon?'🕶 前台匿名':'👤 前台显示昵称')+'</span></div>'+
     '<div class="time">'+fmt(p.created_at)+(p.ip? ' · IP '+esc(p.ip):'')+'</div>'+
     '<div class="author-line">'+authorLine(p)+'</div></div></div>';
   html+='<div class="content"></div>';
@@ -683,7 +703,8 @@ function render(p){
   html+='<div class="acts">'+
     (p.status!==1?'<button class="act-approve" data-id="'+p.id+'">✓ 通过</button>':'')+
     (p.status!==2?'<button class="act-reject" data-id="'+p.id+'">✕ 拒绝</button>':'')+
-    '<button class="act-edit" data-id="'+p.id+'">✏ 编辑文本 / 标签</button>'+
+    '<button class="act-edit" data-id="'+p.id+'">✏ 编辑文本 / 标签 / 匿名</button>'+
+    '<button class="act-anon" data-id="'+p.id+'">'+(isAnon?'👤 取消匿名':'🕶 设为匿名')+'</button>'+
     (isFeat? '<button class="act-unfeature" data-id="'+p.id+'">✩ 取消置顶</button>'
            : '<button class="act-feature" data-id="'+p.id+'">⭐ 设优质</button>')+
     '<button class="act-delete" data-id="'+p.id+'">🗑 删除</button></div>';
@@ -693,6 +714,7 @@ function render(p){
   el.querySelector('.act-approve')?.addEventListener('click',()=>act('admin_approve',p.id));
   el.querySelector('.act-reject')?.addEventListener('click',()=>act('admin_reject',p.id));
   el.querySelector('.act-edit')?.addEventListener('click',()=>openEditPostCard(p));
+  el.querySelector('.act-anon')?.addEventListener('click',()=>toggleAnon('post',p.id,isAnon?0:1));
   el.querySelector('.act-feature')?.addEventListener('click',()=>{
     if(!confirm('设为优质内容？将自动通过审核，并置顶展示在校园墙顶部。')) return;
     act('admin_post_feature',p.id,'&value=1');
@@ -704,14 +726,43 @@ function render(p){
   return el;
 }
 
+// ===== 匿名状态：编辑弹窗回填 + 列表一键切换 ================================
+function syncAnonNick(){
+  document.getElementById('ec_nick_wrap').style.display =
+    document.getElementById('ec_anon').value === '1' ? 'none' : '';
+}
+function setAnonForm(anon, nickname){
+  document.getElementById('ec_anon').value = Number(anon) === 1 ? '1' : '0';
+  document.getElementById('ec_nick').value = Number(anon) === 1 ? '' : (nickname || '');
+  syncAnonNick();
+}
+document.getElementById('ec_anon').addEventListener('change', syncAnonNick);
+
+async function toggleAnon(type, id, value){
+  const tip = value
+    ? '设为匿名？前台将只显示「匿名」，后台仍可查看真实账号和 IP。'
+    : '取消匿名？前台将显示该账号昵称（也可在编辑弹窗里自定义昵称）。';
+  if(!confirm(tip)) return;
+  try{
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),
+      body:'action=admin_anon_set&type='+type+'&id='+id+'&value='+value});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg||'操作失败'); return; }
+    toast(d.msg||'已更新匿名状态');
+    loadStats(); loadList(); loadPending(); loadCommentReviews(); loadFeatured();
+  }catch(_){ toast('网络错误'); }
+}
+
 // 审核面板：编辑帖子/匿名帖文本
 function openEditPostCard(p){
   editEid=p.id; editEtype='post'; editUid3=''; // ''=从审核面板入口，保存后刷新列表
-  document.getElementById('ec_heading').textContent='编辑文本 / 分类标签（校园墙）';
+  document.getElementById('ec_heading').textContent='编辑文本 / 分类标签 / 匿名状态（校园墙）';
   document.getElementById('ec_title_wrap').style.display='';
   document.getElementById('ec_title').value=p.title||'';
   document.getElementById('ec_cat_wrap').style.display='';
   document.getElementById('ec_cat').value=CAT_LABEL[p.category]? p.category : 'other';
+  document.getElementById('ec_anon_wrap').style.display='';
+  setAnonForm(p.is_anon, p.nickname);
   document.getElementById('ec_content').value=p.content||'';
   openMini('editContentMask');
 }
@@ -885,6 +936,8 @@ async function loadUserContents(uid, box){
       row.setAttribute('data-title', c.title||'');
       row.setAttribute('data-content', c.content||'');
       row.setAttribute('data-category', c.category||'other');
+      row.setAttribute('data-anon', c.is_anon||0);
+      row.setAttribute('data-nickname', c.nickname||'');
       box.appendChild(row);
     });
   }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
@@ -996,11 +1049,13 @@ function openEditContent(eid, etype, uid){
   const row=box? [...box.querySelectorAll('.content-row')].find(x=>x.querySelector('[data-eid="'+eid+'"]')) : null;
   const hasTitle = (etype!=='comment');
   const isPost = (etype==='post');
-  document.getElementById('ec_heading').textContent = '编辑'+(UTYPE[etype]||'文本')+(isPost?' / 分类标签':'');
+  document.getElementById('ec_heading').textContent = '编辑'+(UTYPE[etype]||'文本')+(isPost?' / 分类标签':'')+' / 匿名状态';
   document.getElementById('ec_title_wrap').style.display = hasTitle? '' : 'none';
   document.getElementById('ec_title').value = row? (row.dataset.title||'') : '';
   document.getElementById('ec_cat_wrap').style.display = isPost? '' : 'none';
   document.getElementById('ec_cat').value = isPost? (row? (row.dataset.category||'other') : 'other') : 'other';
+  document.getElementById('ec_anon_wrap').style.display = '';
+  setAnonForm(row? row.dataset.anon : 0, row? row.dataset.nickname : '');
   document.getElementById('ec_content').value = row? (row.dataset.content||'') : '';
   openMini('editContentMask');
 }
@@ -1015,12 +1070,16 @@ document.getElementById('ec_submit').addEventListener('click', async ()=>{
     let body='action='+map[editEtype]+'&id='+editEid+'&content='+encodeURIComponent(content);
     if(hasTitle) body+='&title='+encodeURIComponent(title);
     if(editEtype==='post') body+='&category='+encodeURIComponent(document.getElementById('ec_cat').value);
+    if(document.getElementById('ec_anon_wrap').style.display!=='none'){
+      body+='&anonymous='+encodeURIComponent(document.getElementById('ec_anon').value);
+      body+='&display_name='+encodeURIComponent(document.getElementById('ec_nick').value.trim());
+    }
     const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body});
     const d=await r.json();
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
     toast('文本已保存'); closeMini('editContentMask');
     if(editUid3){ const box=document.getElementById('ucl_'+editUid3); if(box && !box.classList.contains('hidden')) await loadUserContents(editUid3, box); }
-    else { loadList(); loadPending(); }
+    loadList(); loadPending(); loadCommentReviews();
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='保存'; }
 });

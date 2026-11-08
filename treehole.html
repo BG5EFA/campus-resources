@@ -27,6 +27,16 @@
   .composer{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(47,123,255,.10);position:relative;overflow:hidden}
   .composer::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
   .composer .hint{font-size:12px;color:var(--muted);margin-bottom:8px}
+  /* 未登录时只显示登录入口，发布框登录后才可见 */
+  .hidden{display:none!important}
+  .login-gate{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 2px}
+  .login-gate .gate-ico{font-size:22px;line-height:1}
+  .login-gate .gate-txt{flex:1;min-width:170px;display:flex;flex-direction:column;gap:3px}
+  .login-gate .gate-txt b{font-size:15px;color:var(--blue-d)}
+  .login-gate .gate-txt span{font-size:12px;color:var(--muted);line-height:1.5}
+  .gate-btn{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;
+    border-radius:10px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;
+    box-shadow:0 6px 16px var(--glow);font-family:inherit}
   textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:15px;resize:vertical;min-height:90px;outline:none;background:#f7fbff;font-family:inherit}
   textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,123,255,.12)}
   .row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
@@ -93,11 +103,21 @@
   </header>
 
   <section class="composer">
-    <div class="hint">🌿 树洞内容全部匿名发布与评论，请文明表达。</div>
-    <textarea id="content" maxlength="500" placeholder="把心事写下来…"></textarea>
-    <div class="row">
-      <label class="file-btn">📷 图片<input type="file" id="image" accept="image/*"></label>
-      <button class="submit" id="submitBtn">匿名发布</button>
+    <div class="login-gate" id="loginGate">
+      <div class="gate-ico">🔒</div>
+      <div class="gate-txt">
+        <b>登录后才能发布内容</b>
+        <span>🌿 树洞内容全部匿名发布与评论，请文明表达。</span>
+      </div>
+      <button class="gate-btn" id="gateLogin" type="button" onclick="showLogin()">登录 / 注册</button>
+    </div>
+    <div class="hidden" id="composerBody">
+      <div class="hint">🌿 树洞内容全部匿名发布与评论，请文明表达。</div>
+      <textarea id="content" maxlength="500" placeholder="把心事写下来…"></textarea>
+      <div class="row">
+        <label class="file-btn">📷 图片<input type="file" id="image" accept="image/*"></label>
+        <button class="submit" id="submitBtn">匿名发布</button>
+      </div>
     </div>
   </section>
 
@@ -173,6 +193,22 @@ const imgMask=document.getElementById('imgMask');
 document.getElementById('wall').addEventListener('click',e=>{const pic=e.target.closest('.pic');if(!pic)return;document.getElementById('imgMaskPic').src=pic.src;imgMask.classList.add('show');});
 imgMask.addEventListener('click',()=>imgMask.classList.remove('show'));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')imgMask.classList.remove('show');});
+</script>
+<script>
+// 发布框登录门禁：登录 / 退出后同步显示状态（未登录只显示登录入口）
+function applyPublishGate(){
+  var logged = !!localStorage.getItem('bb_token');
+  var g = document.getElementById('loginGate'), b = document.getElementById('composerBody');
+  if(g) g.classList.toggle('hidden', logged);
+  if(b) b.classList.toggle('hidden', !logged);
+}
+(function(){
+  var old = window.renderAuth;
+  if(typeof old === 'function'){
+    window.renderAuth = function(){ var r = old.apply(this, arguments); applyPublishGate(); return r; };
+  }
+  applyPublishGate();
+})();
 </script>
 <script src="notice.js"></script>
 </body>

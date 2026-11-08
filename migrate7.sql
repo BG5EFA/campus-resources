@@ -1,5 +1,5 @@
 -- migrate7：内容表记录发布者 IP + 用户最近登录 IP（幂等）
--- posts / questions / forum_topics / comments / materials 加 ip；users 加 last_ip
+-- posts / comments / materials 加 ip；users 加 last_ip（三板块已下线，不再处理其表）
 
 DELIMITER $$
 
@@ -18,8 +18,6 @@ END $$
 DELIMITER ;
 
 CALL add_col_ip('posts',         'ip', 'VARCHAR(45) NULL');
-CALL add_col_ip('questions',     'ip', 'VARCHAR(45) NULL');
-CALL add_col_ip('forum_topics',  'ip', 'VARCHAR(45) NULL');
 CALL add_col_ip('comments',      'ip', 'VARCHAR(45) NULL');
 CALL add_col_ip('materials',     'ip', 'VARCHAR(45) NULL');
 CALL add_col_ip('users',         'last_ip', 'VARCHAR(45) NULL');
@@ -30,6 +28,6 @@ DROP PROCEDURE IF EXISTS add_col_ip;
 SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND ((TABLE_NAME IN ('posts','questions','forum_topics','comments','materials') AND COLUMN_NAME='ip')
+  AND ((TABLE_NAME IN ('posts','comments','materials') AND COLUMN_NAME='ip')
     OR (TABLE_NAME='users' AND COLUMN_NAME='last_ip'))
 ORDER BY TABLE_NAME;

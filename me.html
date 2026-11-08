@@ -140,9 +140,7 @@
     <div class="panel active" id="panel-content">
       <div class="tabs" style="margin-top:0">
         <button data-sub="all" class="active">全部</button>
-        <button data-sub="post">校园墙/树洞</button>
-        <button data-sub="forum">论坛</button>
-        <button data-sub="qa">问答</button>
+        <button data-sub="post">校园墙</button>
         <button data-sub="mat">资料</button>
         <button data-sub="fav">⭐ 收藏</button>
       </div>
@@ -222,10 +220,10 @@ document.querySelectorAll('#panel-content .tabs button[data-sub]').forEach(b=>b.
 function applyMe(){if(!ME)return;const name=ME.nickname||ME.username||'?';document.getElementById('bigAv').textContent=name[0].toUpperCase();document.getElementById('pName').textContent=name;document.getElementById('pUid').textContent='@'+ME.username;const a=document.getElementById('nick'),b=document.getElementById('quickNick');if(a)a.value=ME.nickname||'';if(b)b.value=ME.nickname||'';renderAuth();}
 async function saveNickname(nick){nick=String(nick||'').trim();if(!nick){toast('昵称不能为空');return false;}if(nick.length>50){toast('昵称最长 50 字');return false;}const fd=new FormData();fd.append('action','profile_update');fd.append('nickname',nick);fd.append('token',TOKEN);try{const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){ME=Object.assign({},ME,{nickname:d.nickname,username:d.username});applyMe();toast('昵称已更新');return true;}toast(d.msg||'保存失败');return false;}catch(_){toast('网络错误');return false;}}
 function switchTab(name,sub){const b=document.querySelector('.tabs button[data-tab="'+name+'"]');if(b)b.click();if(sub){const s=document.querySelector('#panel-content .tabs button[data-sub="'+sub+'"]');if(s)s.click();}}
-function boardUrl(p){return p.board==1?'treehole.html':(p.board==2?'forum.html':'index.html');}
+function boardUrl(){return 'index.html';}
 function metaSpan(x){const s=document.createElement('span');if(x&&typeof x==='object'){if(x.html)s.innerHTML=x.html;else s.textContent=String(x.text||'');}else s.textContent=String(x==null?'':x);return s;}
 function itemShell(o){const el=document.createElement('div');el.className='item';const h=document.createElement('div');h.className='h';h.textContent=o.title||'';el.appendChild(h);if(o.body){const ex=document.createElement('div');ex.className='ex';ex.textContent=o.body;el.appendChild(ex);if(String(o.body).length>48){const t=document.createElement('button');t.className='mini-btn';t.style.cssText='margin-top:7px;padding:4px 10px;font-size:12px';t.textContent='展开全文';t.onclick=()=>{const full=ex.classList.toggle('full');t.textContent=full?'收起':'展开全文';};el.appendChild(t);}}const meta=document.createElement('div');meta.className='meta';(o.meta||[]).filter(x=>x!==''&&x!=null&&x!==false).forEach(x=>meta.appendChild(metaSpan(x)));el.appendChild(meta);const acts=document.createElement('div');acts.className='item-acts';if(o.url){const a=document.createElement('a');a.className='mini-btn';a.href=o.url;a.textContent='查看原文 ↗';a.target='_blank';a.rel='noopener';acts.appendChild(a);}(o.buttons||[]).forEach(b=>acts.appendChild(b));if(acts.children.length)el.appendChild(acts);return el;}
-function updateStats(){if(!myData)return;const n=(myData.posts||[]).length+(myData.topics||[]).length+(myData.questions||[]).length+(myData.materials||[]).length;document.getElementById('statPosts').textContent=n;document.getElementById('statFavs').textContent=(myData.favorites||[]).length;}
+function updateStats(){if(!myData)return;const n=(myData.posts||[]).length+(myData.materials||[]).length;document.getElementById('statPosts').textContent=n;document.getElementById('statFavs').textContent=(myData.favorites||[]).length;}
 function setSummary(t){document.getElementById('contentSummary').textContent=t;}
 function fmtTime(s){if(!s)return '';return String(s).replace('T',' ').slice(0,16);}
 function renderFavorites(box){
@@ -244,9 +242,7 @@ function renderContent(){
   if(!myData){box.innerHTML='<div class="empty">加载中…</div>';return;}
   if(curSub==='fav'){renderFavorites(box);return;}
   const rows=[];
-  if(curSub==='all'||curSub==='post'){(myData.posts||[]).forEach(p=>{const lbl=p.board==2?'论坛':(p.board==1?'树洞':'校园墙');rows.push({title:(p.title?p.title:lbl),body:p.content,meta:[lbl,p.status!=null?{html:stLabel(p.status)}:'',fmtTime(p.created_at)],url:boardUrl(p)});});}
-  if(curSub==='all'||curSub==='forum'){(myData.topics||[]).forEach(t=>rows.push({title:t.title,body:'',meta:['论坛','💬 '+(t.reply_count||0),fmtTime(t.created_at),t.status!=null?{html:stLabel(t.status)}:''],url:'forum.html'}));}
-  if(curSub==='all'||curSub==='qa'){(myData.questions||[]).forEach(q=>rows.push({title:q.title,body:'',meta:['问答','💬 '+(q.answer_count||0),fmtTime(q.created_at)],url:'qa.html'}));}
+  if(curSub==='all'||curSub==='post'){(myData.posts||[]).forEach(p=>{const lbl='校园墙';rows.push({title:(p.title?p.title:lbl),body:p.content,meta:[lbl,p.status!=null?{html:stLabel(p.status)}:'',fmtTime(p.created_at)],url:boardUrl(p)});});}
   if(curSub==='all'||curSub==='mat'){(myData.materials||[]).forEach(m=>rows.push({title:m.title,body:'',meta:['资料','⬇ '+(m.downloads||0),fmtTime(m.created_at),m.status!=null?{html:stLabel(m.status)}:''],url:'study.html'}));}
   setSummary(rows.length?'共 '+rows.length+' 条 · 点「展开全文」可看完整内容':'');
   if(rows.length===0){box.innerHTML='<div class="empty">这里还没有内容～</div>';return;}

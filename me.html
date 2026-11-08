@@ -97,7 +97,7 @@
     <div class="panel active" id="panel-content">
       <div class="tabs" style="margin-top:0">
         <button data-sub="all" class="active">全部</button>
-        <button data-sub="post">表白/树洞</button>
+        <button data-sub="post">校园墙/树洞</button>
         <button data-sub="forum">论坛</button>
         <button data-sub="qa">问答</button>
         <button data-sub="mat">资料</button>
@@ -160,7 +160,7 @@ document.querySelectorAll('#panel-content .tabs button[data-sub]').forEach(b=>b.
 
 function fmtTime(s){if(!s)return '';return String(s).replace('T',' ').slice(0,16);}
 function renderContent(){const box=document.getElementById('contentList');if(!myData){box.innerHTML='<div class="empty">加载中…</div>';return;}const rows=[];
-  if(curSub==='all'||curSub==='post'){(myData.posts||[]).forEach(p=>{const lbl=p.board==2?'论坛':(p.board==1?'树洞':'表白');rows.push({h:(p.title?p.title:lbl),ex:p.content,meta:[lbl,p.status!=null?stLabel(p.status):'',fmtTime(p.created_at)],k:'post'});});}
+  if(curSub==='all'||curSub==='post'){(myData.posts||[]).forEach(p=>{const lbl=p.board==2?'论坛':(p.board==1?'树洞':'校园墙');rows.push({h:(p.title?p.title:lbl),ex:p.content,meta:[lbl,p.status!=null?stLabel(p.status):'',fmtTime(p.created_at)],k:'post'});});}
   if(curSub==='all'||curSub==='forum'){(myData.topics||[]).forEach(t=>rows.push({h:t.title,ex:'',meta:['论坛','💬 '+(t.reply_count||0),fmtTime(t.created_at),t.status!=null?stLabel(t.status):''],k:'forum'}));}
   if(curSub==='all'||curSub==='qa'){(myData.questions||[]).forEach(q=>rows.push({h:q.title,ex:'',meta:['问答','💬 '+(q.answer_count||0),fmtTime(q.created_at)],k:'qa'}));}
   if(curSub==='all'||curSub==='mat'){(myData.materials||[]).forEach(m=>rows.push({h:m.title,ex:'',meta:['资料','⬇ '+(m.downloads||0),fmtTime(m.created_at),m.status!=null?stLabel(m.status):''],k:'mat'}));}

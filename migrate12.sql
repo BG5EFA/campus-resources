@@ -1,5 +1,5 @@
 -- 投稿分类 + 内容举报（可重复执行）
--- posts.category: love 表白 / lost 寻物 / help 求助 / chat 吐槽 / other 其他
+-- posts.category: love 寻人 / lost 寻物 / help 求助 / chat 吐槽 / other 其他
 SET @db = DATABASE();
 
 SET @sql = IF(

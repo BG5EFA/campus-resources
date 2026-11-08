@@ -67,6 +67,25 @@
   .captcha-row input{flex:1;min-width:0}
   .captcha-img{width:120px;height:42px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer;background:#f7fbff}
   .captcha-img:active{transform:scale(.97)}
+  .profile .info{flex:1;min-width:0}
+  .nm-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mini-btn{background:#f4f9ff;border:1px solid var(--line);color:var(--blue-d);border-radius:9px;padding:6px 12px;font-size:12px;cursor:pointer;text-decoration:none;display:inline-block}
+  .mini-btn:hover{background:#e6f1ff}
+  .quick-row{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .quick-row .mini-btn{flex:1;min-width:100px;text-align:center;padding:10px 8px;font-size:13px}
+  .stat-row{display:flex;gap:8px;margin:0 0 10px}
+  .stat{flex:1;background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center}
+  .stat .n{font-size:19px;font-weight:700;color:var(--blue-d)}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .inline-edit{display:none;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .inline-edit.show{display:flex}
+  .inline-edit input{flex:1;min-width:130px;border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:14px;outline:none;background:#f7fbff}
+  .inline-edit .ok{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13px;cursor:pointer}
+  .inline-edit .no{background:#fff;border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:9px 14px;font-size:13px;cursor:pointer}
+  .hint{font-size:12px;color:var(--muted);margin:0 0 6px}
+  .form-card .hint{margin-top:8px}
+  .item .ex.full{display:block;-webkit-line-clamp:unset;white-space:pre-wrap;word-break:break-word}
+  .item .item-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
 </style>
 </head>
 <body>
@@ -89,7 +108,26 @@
   <div id="profileBox" style="display:none">
     <div class="profile">
       <div class="big-av" id="bigAv">?</div>
-      <div class="info"><div class="nm" id="pName">--</div><div class="uid" id="pUid">@--</div></div>
+      <div class="info">
+        <div class="nm-row"><span class="nm" id="pName">--</span><button class="mini-btn" id="editNickBtn">✏️ 改昵称</button></div>
+        <div class="uid" id="pUid">@--</div>
+        <div class="inline-edit" id="nickEdit">
+          <input type="text" id="quickNick" maxlength="50" placeholder="输入新昵称">
+          <button class="ok" id="quickNickSave">保存</button>
+          <button class="no" id="quickNickCancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="n" id="statPosts">0</div><div class="l">我发布的</div></div>
+      <div class="stat"><div class="n" id="statFavs">0</div><div class="l">我收藏的</div></div>
+      <div class="stat"><div class="n" id="statUnread">0</div><div class="l">未读消息</div></div>
+    </div>
+    <div class="quick-row">
+      <button class="mini-btn" id="quickPwd">🔑 修改密码</button>
+      <button class="mini-btn" id="quickPosts">📝 查看发布</button>
+      <button class="mini-btn" id="quickFavs">⭐ 我的收藏</button>
     </div>
 
     <div class="tabs">
@@ -107,6 +145,7 @@
         <button data-sub="mat">资料</button>
         <button data-sub="fav">⭐ 收藏</button>
       </div>
+      <div id="contentSummary" class="hint"></div>
       <div id="contentList"></div>
     </div>
 
@@ -117,13 +156,18 @@
 
     <div class="panel" id="panel-setting">
       <div class="form-card">
-        <h3>修改资料</h3>
-        <label>昵称</label><input id="nick" placeholder="昵称" maxlength="50">
-        <div style="height:14px"></div>
-        <h3>修改密码</h3>
+        <h3>✏️ 修改昵称</h3>
+        <label>新昵称（最长 50 字）</label><input id="nick" placeholder="输入新昵称" maxlength="50">
+        <button class="save" id="saveNickBtn">保存昵称</button>
+        <div class="hint">昵称会显示在你的发布内容、评论和个人中心。</div>
+      </div>
+      <div class="form-card">
+        <h3>🔑 修改密码</h3>
         <label>原密码</label><input id="oldpw" type="password" placeholder="原密码" autocomplete="current-password">
-        <label>新密码（至少6位）</label><input id="newpw" type="password" placeholder="新密码" autocomplete="new-password">
-        <button class="save" id="saveBtn">保存修改</button>
+        <label>新密码（至少 6 位）</label><input id="newpw" type="password" placeholder="新密码" autocomplete="new-password">
+        <label>确认新密码</label><input id="newpw2" type="password" placeholder="再输入一次新密码" autocomplete="new-password">
+        <button class="save" id="savePwdBtn">保存密码</button>
+        <div class="hint">忘记密码需联系管理员重置，请记牢新密码。</div>
       </div>
       <button class="readall" id="logoutBtn2">退出登录</button>
     </div>
@@ -155,7 +199,7 @@ let curCap={login:'',reg:''};
 async function loadCaptcha(kind){try{const r=await fetch(API+'?action=captcha');const d=await r.json();if(!d.ok)return;if(kind==='login'){curCap.login=d.cid;document.getElementById('l_capimg').src=d.image;document.getElementById('l_cap').value='';}else{curCap.reg=d.cid;document.getElementById('r_capimg').src=d.image;document.getElementById('r_cap').value='';}}catch(_){}}
 function openAuth(kind){closeMask('loginMask');closeMask('regMask');if(kind==='login'){openMask('loginMask');loadCaptcha('login');}else{openMask('regMask');loadCaptcha('reg');}}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
-function esc(s){return s==null?'':String(s);}
+function esc(s){return s==null?'':String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function stLabel(s){return s==1?'<span class="st st1">已通过</span>':(s==2?'<span class="st st2">已拒绝</span>':'<span class="st st0">审核中</span>');}
 async function refreshUser(){if(!TOKEN){ME=null;renderAuth();return;}try{const r=await fetch(API+'?action=me&token='+encodeURIComponent(TOKEN));const d=await r.json();if(d.ok)ME=d;else{TOKEN='';localStorage.removeItem('bb_token');ME=null;}}catch(_){}renderAuth();}
 function renderAuth(){const a=document.getElementById('authArea');if(ME){const L=(ME.nickname||ME.username||'?')[0].toUpperCase();a.innerHTML='<div class="user-chip"><div class="av">'+L+'</div><span class="nm">'+esc(ME.nickname)+'</span><button class="btn-ghost" id="logoutBtn">退出</button></div>';document.getElementById('logoutBtn').onclick=logout;}else{a.innerHTML='<button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button>';document.getElementById('loginBtn').onclick=()=>openAuth('login');document.getElementById('regBtn').onclick=()=>openAuth('reg');}}
@@ -174,38 +218,55 @@ function setTab(){document.querySelectorAll('.tabs button[data-tab]').forEach(b=
 setTab();
 document.querySelectorAll('#panel-content .tabs button[data-sub]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#panel-content .tabs button[data-sub]').forEach(x=>x.classList.remove('active'));b.classList.add('active');curSub=b.dataset.sub;renderContent();});
 
+function applyMe(){if(!ME)return;const name=ME.nickname||ME.username||'?';document.getElementById('bigAv').textContent=name[0].toUpperCase();document.getElementById('pName').textContent=name;document.getElementById('pUid').textContent='@'+ME.username;const a=document.getElementById('nick'),b=document.getElementById('quickNick');if(a)a.value=ME.nickname||'';if(b)b.value=ME.nickname||'';renderAuth();}
+async function saveNickname(nick){nick=String(nick||'').trim();if(!nick){toast('昵称不能为空');return false;}if(nick.length>50){toast('昵称最长 50 字');return false;}const fd=new FormData();fd.append('action','profile_update');fd.append('nickname',nick);fd.append('token',TOKEN);try{const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){ME=Object.assign({},ME,{nickname:d.nickname,username:d.username});applyMe();toast('昵称已更新');return true;}toast(d.msg||'保存失败');return false;}catch(_){toast('网络错误');return false;}}
+function switchTab(name,sub){const b=document.querySelector('.tabs button[data-tab="'+name+'"]');if(b)b.click();if(sub){const s=document.querySelector('#panel-content .tabs button[data-sub="'+sub+'"]');if(s)s.click();}}
+function boardUrl(p){return p.board==1?'treehole.html':(p.board==2?'forum.html':'index.html');}
+function metaSpan(x){const s=document.createElement('span');if(x&&typeof x==='object'){if(x.html)s.innerHTML=x.html;else s.textContent=String(x.text||'');}else s.textContent=String(x==null?'':x);return s;}
+function itemShell(o){const el=document.createElement('div');el.className='item';const h=document.createElement('div');h.className='h';h.textContent=o.title||'';el.appendChild(h);if(o.body){const ex=document.createElement('div');ex.className='ex';ex.textContent=o.body;el.appendChild(ex);if(String(o.body).length>48){const t=document.createElement('button');t.className='mini-btn';t.style.cssText='margin-top:7px;padding:4px 10px;font-size:12px';t.textContent='展开全文';t.onclick=()=>{const full=ex.classList.toggle('full');t.textContent=full?'收起':'展开全文';};el.appendChild(t);}}const meta=document.createElement('div');meta.className='meta';(o.meta||[]).filter(x=>x!==''&&x!=null&&x!==false).forEach(x=>meta.appendChild(metaSpan(x)));el.appendChild(meta);const acts=document.createElement('div');acts.className='item-acts';if(o.url){const a=document.createElement('a');a.className='mini-btn';a.href=o.url;a.textContent='查看原文 ↗';a.target='_blank';a.rel='noopener';acts.appendChild(a);}(o.buttons||[]).forEach(b=>acts.appendChild(b));if(acts.children.length)el.appendChild(acts);return el;}
+function updateStats(){if(!myData)return;const n=(myData.posts||[]).length+(myData.topics||[]).length+(myData.questions||[]).length+(myData.materials||[]).length;document.getElementById('statPosts').textContent=n;document.getElementById('statFavs').textContent=(myData.favorites||[]).length;}
+function setSummary(t){document.getElementById('contentSummary').textContent=t;}
 function fmtTime(s){if(!s)return '';return String(s).replace('T',' ').slice(0,16);}
 function renderFavorites(box){
   const list=(myData&&myData.favorites)||[];
+  setSummary(list.length?'共 '+list.length+' 条收藏 · 点「查看原文」可回到校园墙':'');
   if(!list.length){box.innerHTML='<div class="empty">还没有收藏，去校园墙点「☆ 收藏」吧～</div>';return;}
   box.textContent='';
   list.forEach(p=>{
-    const el=document.createElement('div');el.className='item';
-    const h=document.createElement('div');h.className='h';h.textContent=p.title||'校园墙内容';
-    const ex=document.createElement('div');ex.className='ex';ex.textContent=p.content||'';
-    const meta=document.createElement('div');meta.className='meta';
-    const tm=document.createElement('span');tm.textContent='收藏于 '+fmtTime(p.favorited_at||p.created_at);meta.appendChild(tm);
-    const c=document.createElement('span');c.textContent=CAT_LBL[p.category]||'校园墙';meta.appendChild(c);
-    const btn=document.createElement('button');btn.className='btn-ghost';btn.style.cssText='margin-top:8px;padding:5px 12px;font-size:12px';btn.textContent='★ 取消收藏';
+    const btn=document.createElement('button');btn.className='mini-btn';btn.textContent='★ 取消收藏';
     btn.onclick=async()=>{btn.disabled=true;try{const fd=new FormData();fd.append('action','favorite_toggle');fd.append('post_id',p.id);fd.append('token',TOKEN);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast(d.msg||'已取消收藏');loadMy();}else toast(d.msg||'操作失败');}catch(_){toast('网络错误');}finally{btn.disabled=false;}};
-    el.appendChild(h);el.appendChild(ex);el.appendChild(meta);el.appendChild(btn);box.appendChild(el);
+    box.appendChild(itemShell({title:p.title||'校园墙内容',body:p.content||'',meta:['收藏于 '+fmtTime(p.favorited_at||p.created_at),CAT_LBL[p.category]||'校园墙'],url:'index.html',buttons:[btn]}));
   });
 }
-function renderContent(){const box=document.getElementById('contentList');if(!myData){box.innerHTML='<div class="empty">加载中…</div>';return;}if(curSub==='fav'){renderFavorites(box);return;}const rows=[];
-  if(curSub==='all'||curSub==='post'){(myData.posts||[]).forEach(p=>{const lbl=p.board==2?'论坛':(p.board==1?'树洞':'校园墙');rows.push({h:(p.title?p.title:lbl),ex:p.content,meta:[lbl,p.status!=null?stLabel(p.status):'',fmtTime(p.created_at)],k:'post'});});}
-  if(curSub==='all'||curSub==='forum'){(myData.topics||[]).forEach(t=>rows.push({h:t.title,ex:'',meta:['论坛','💬 '+(t.reply_count||0),fmtTime(t.created_at),t.status!=null?stLabel(t.status):''],k:'forum'}));}
-  if(curSub==='all'||curSub==='qa'){(myData.questions||[]).forEach(q=>rows.push({h:q.title,ex:'',meta:['问答','💬 '+(q.answer_count||0),fmtTime(q.created_at)],k:'qa'}));}
-  if(curSub==='all'||curSub==='mat'){(myData.materials||[]).forEach(m=>rows.push({h:m.title,ex:'',meta:['资料','⬇ '+(m.downloads||0),fmtTime(m.created_at),m.status!=null?stLabel(m.status):''],k:'mat'}));}
+function renderContent(){
+  const box=document.getElementById('contentList');
+  if(!myData){box.innerHTML='<div class="empty">加载中…</div>';return;}
+  if(curSub==='fav'){renderFavorites(box);return;}
+  const rows=[];
+  if(curSub==='all'||curSub==='post'){(myData.posts||[]).forEach(p=>{const lbl=p.board==2?'论坛':(p.board==1?'树洞':'校园墙');rows.push({title:(p.title?p.title:lbl),body:p.content,meta:[lbl,p.status!=null?{html:stLabel(p.status)}:'',fmtTime(p.created_at)],url:boardUrl(p)});});}
+  if(curSub==='all'||curSub==='forum'){(myData.topics||[]).forEach(t=>rows.push({title:t.title,body:'',meta:['论坛','💬 '+(t.reply_count||0),fmtTime(t.created_at),t.status!=null?{html:stLabel(t.status)}:''],url:'forum.html'}));}
+  if(curSub==='all'||curSub==='qa'){(myData.questions||[]).forEach(q=>rows.push({title:q.title,body:'',meta:['问答','💬 '+(q.answer_count||0),fmtTime(q.created_at)],url:'qa.html'}));}
+  if(curSub==='all'||curSub==='mat'){(myData.materials||[]).forEach(m=>rows.push({title:m.title,body:'',meta:['资料','⬇ '+(m.downloads||0),fmtTime(m.created_at),m.status!=null?{html:stLabel(m.status)}:''],url:'study.html'}));}
+  setSummary(rows.length?'共 '+rows.length+' 条 · 点「展开全文」可看完整内容':'');
   if(rows.length===0){box.innerHTML='<div class="empty">这里还没有内容～</div>';return;}
-  box.innerHTML='';rows.forEach(r=>{const el=document.createElement('div');el.className='item';el.innerHTML='<div class="h"></div>'+(r.ex?'<div class="ex"></div>':'')+'<div class="meta"></div>';el.querySelector('.h').textContent=r.h;if(r.ex)el.querySelector('.ex').textContent=r.ex;const meta=el.querySelector('.meta');r.meta.filter(Boolean).forEach(tx=>{const s=document.createElement('span');s.innerHTML=tx;meta.appendChild(s);});box.appendChild(el);});}
+  box.textContent='';rows.forEach(r=>box.appendChild(itemShell(r)));
+}
 
-async function loadMy(){const [r1,r2]=await Promise.all([fetch(API+'?action=my_content&token='+encodeURIComponent(TOKEN)),fetch(API+'?action=favorite_list&token='+encodeURIComponent(TOKEN))]);const d=await r1.json();if(!d.ok){toast(d.msg||'加载失败');return;}let favs=[];try{const f=await r2.json();if(f.ok)favs=f.list||[];}catch(_){}myData=d;myData.favorites=favs;renderContent();}
-async function loadNoti(){const r=await fetch(API+'?action=notifications&token='+encodeURIComponent(TOKEN));const d=await r.json();if(!d.ok){toast(d.msg||'加载失败');return;}const box=document.getElementById('notiList');const unread=d.unread||0;const dot=document.getElementById('unreadDot');if(unread>0){dot.style.display='inline-block';dot.textContent=unread;}else dot.style.display='none';if(!d.notifications||d.notifications.length===0){box.innerHTML='<div class="empty">暂无消息</div>';return;}box.innerHTML='';d.notifications.forEach(n=>{const el=document.createElement('div');el.className='noti'+(n.is_read?'':' unread');el.innerHTML='<div class="msg"></div><div class="time">'+fmtTime(n.created_at)+'</div>'+(n.is_read?'':'<span class="badge-un"></span>');el.querySelector('.msg').textContent=n.message;el.onclick=async()=>{if(!n.is_read){await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=notifications_read&id='+n.id+'&token='+encodeURIComponent(TOKEN)});loadNoti();}};box.appendChild(el);});}
+async function loadMy(){const [r1,r2]=await Promise.all([fetch(API+'?action=my_content&token='+encodeURIComponent(TOKEN)),fetch(API+'?action=favorite_list&token='+encodeURIComponent(TOKEN))]);const d=await r1.json();if(!d.ok){toast(d.msg||'加载失败');return;}let favs=[];try{const f=await r2.json();if(f.ok)favs=f.list||[];}catch(_){}myData=d;myData.favorites=favs;updateStats();renderContent();}
+async function loadNoti(){const r=await fetch(API+'?action=notifications&token='+encodeURIComponent(TOKEN));const d=await r.json();if(!d.ok){toast(d.msg||'加载失败');return;}const box=document.getElementById('notiList');const unread=d.unread||0;document.getElementById('statUnread').textContent=unread;const dot=document.getElementById('unreadDot');if(unread>0){dot.style.display='inline-block';dot.textContent=unread;}else dot.style.display='none';if(!d.notifications||d.notifications.length===0){box.innerHTML='<div class="empty">暂无消息</div>';return;}box.innerHTML='';d.notifications.forEach(n=>{const el=document.createElement('div');el.className='noti'+(n.is_read?'':' unread');el.innerHTML='<div class="msg"></div><div class="time">'+fmtTime(n.created_at)+'</div>'+(n.is_read?'':'<span class="badge-un"></span>');el.querySelector('.msg').textContent=n.message;el.onclick=async()=>{if(!n.is_read){await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=notifications_read&id='+n.id+'&token='+encodeURIComponent(TOKEN)});loadNoti();}};box.appendChild(el);});}
 document.getElementById('readAll').onclick=async()=>{await fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=notifications_read&token='+encodeURIComponent(TOKEN)});toast('已全部标记为已读');loadNoti();};
-document.getElementById('saveBtn').onclick=async()=>{const nick=document.getElementById('nick').value.trim();const oldpw=document.getElementById('oldpw').value,newpw=document.getElementById('newpw').value;const fd=new FormData();fd.append('action','profile_update');if(nick)fd.append('nickname',nick);if(newpw){if(!oldpw){toast('修改密码需填写原密码');return;}fd.append('old_password',oldpw);fd.append('new_password',newpw);}if(TOKEN)fd.append('token',TOKEN);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast('已更新');ME=d;renderAuth();document.getElementById('oldpw').value='';document.getElementById('newpw').value='';}else toast(d.msg);};
+document.getElementById('editNickBtn').onclick=()=>{document.getElementById('quickNick').value=ME?ME.nickname:'';document.getElementById('nickEdit').classList.add('show');document.getElementById('quickNick').focus();};
+document.getElementById('quickNickCancel').onclick=()=>document.getElementById('nickEdit').classList.remove('show');
+document.getElementById('quickNickSave').onclick=async()=>{if(await saveNickname(document.getElementById('quickNick').value))document.getElementById('nickEdit').classList.remove('show');};
+document.getElementById('quickNick').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('quickNickSave').click();});
+document.getElementById('saveNickBtn').onclick=()=>saveNickname(document.getElementById('nick').value);
+document.getElementById('savePwdBtn').onclick=async()=>{const oldpw=document.getElementById('oldpw').value,newpw=document.getElementById('newpw').value,cf=document.getElementById('newpw2').value;if(!oldpw){toast('请填写原密码');return;}if(newpw.length<6){toast('新密码至少 6 位');return;}if(newpw!==cf){toast('两次输入的新密码不一致');return;}const fd=new FormData();fd.append('action','profile_update');fd.append('old_password',oldpw);fd.append('new_password',newpw);fd.append('token',TOKEN);try{const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){toast('密码已修改');document.getElementById('oldpw').value='';document.getElementById('newpw').value='';document.getElementById('newpw2').value='';}else toast(d.msg||'修改失败');}catch(_){toast('网络错误');}};
+document.getElementById('quickPwd').onclick=()=>{switchTab('setting');document.getElementById('oldpw').focus();};
+document.getElementById('quickPosts').onclick=()=>switchTab('content','all');
+document.getElementById('quickFavs').onclick=()=>switchTab('content','fav');
 document.getElementById('logoutBtn2').onclick=logout;
 
-async function init(){await refreshUser();if(!ME){document.getElementById('notLogin').style.display='flex';return;}document.getElementById('profileBox').style.display='block';document.getElementById('bigAv').textContent=(ME.nickname||ME.username||'?')[0].toUpperCase();document.getElementById('pName').textContent=ME.nickname||ME.username;document.getElementById('pUid').textContent='@'+ME.username;loadMy();}
+async function init(){await refreshUser();if(!ME){document.getElementById('notLogin').style.display='flex';return;}document.getElementById('profileBox').style.display='block';applyMe();loadMy();loadNoti();}
 init();
 </script>
 <script src="notice.js"></script>

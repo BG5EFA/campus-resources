@@ -279,7 +279,7 @@
       <div class="preview" id="preview"><img id="previewImg" alt="预览"></div>
       <div class="row">
         <select class="cat-sel" id="category" aria-label="投稿分类">
-          <option value="love">💌 表白</option>
+          <option value="love">👤 寻人</option>
           <option value="lost">🔎 寻物</option>
           <option value="help">🙋 求助</option>
           <option value="chat">💬 吐槽</option>
@@ -306,7 +306,7 @@
     <input type="search" id="searchInput" placeholder="🔍 搜索内容 / 昵称…" maxlength="50" autocomplete="off">
     <div class="cat-chips" id="catChips">
       <button data-cat="" class="on">全部</button>
-      <button data-cat="love">💌 表白</button>
+      <button data-cat="love">👤 寻人</button>
       <button data-cat="lost">🔎 寻物</button>
       <button data-cat="help">🙋 求助</button>
       <button data-cat="chat">💬 吐槽</button>
@@ -387,7 +387,7 @@
 const API = 'api.php';
 let page = 1, loading = false, noMore = false;
 let TOKEN = localStorage.getItem('bb_token') || '';
-const CATS = {love:'💌 表白', lost:'🔎 寻物', help:'🙋 求助', chat:'💬 吐槽', other:'✨ 其他'};
+const CATS = {love:'👤 寻人', lost:'🔎 寻物', help:'🙋 求助', chat:'💬 吐槽', other:'✨ 其他'};
 let curCat = '', curQ = '', reportPostId = 0;
 function escHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let ME = null;
@@ -495,7 +495,7 @@ async function loadPosts(reset){
     const data = await r.json();
     if(!data.ok){ toast(data.msg||'加载失败'); return; }
     if(data.posts.length===0 && page===1){
-      wall.innerHTML = '<div class="empty">还没有表白哦，来做第一个吧 🌟</div>';
+      wall.innerHTML = '<div class="empty">还没有内容哦，来做第一个吧 🌟</div>';
       noMore = true;
     }
     data.posts.forEach(p=>wall.appendChild(renderPost(p)));

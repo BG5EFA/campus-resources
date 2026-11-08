@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS posts (
     INDEX idx_featured (featured, status),
     INDEX idx_cat (board, category, status),
     INDEX idx_board (board),
+    INDEX idx_hot (status, board, likes),
     INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS comments (
     user_id INT NULL,
     nickname VARCHAR(50) NOT NULL DEFAULT '匿名',
     content TEXT NOT NULL,
+    image VARCHAR(64) DEFAULT NULL COMMENT '评论配图，/uploads/ 下的文件名；纯图片评论 content 为空',
     status TINYINT NOT NULL DEFAULT 0 COMMENT '0待审核 1已通过 2已拒绝',
     is_anon TINYINT NOT NULL DEFAULT 0 COMMENT '0显示昵称 1前台匿名，后台仍可溯源',
     ip VARCHAR(45) DEFAULT NULL,

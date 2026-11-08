@@ -36,7 +36,7 @@ run_ssh "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/uploads/materials' && chmod 755 '$R
 
 # 2) 上传源码（不覆盖 config.php）
 echo "⬆️  上传文件…"
-for f in api.php index.html treehole.html forum.html qa.html study.html me.html admin.html; do
+for f in api.php index.html study.html me.html admin.html; do
   run_scp_base64 "$LOCAL_DIR/$f" "$REMOTE_DIR/$f"
   echo "   ✓ $f"
 done
@@ -68,7 +68,7 @@ run_sql_file() {
 [ "$(has_tbl posts)" = "0" ] && { echo "   全新库 → 先建库结构"; run_sql_file schema.sql; }
 [ "$(has_tbl users)" = "0" ] && [ -f "$LOCAL_DIR/migrate.sql" ] && { echo "   增量 → users"; run_sql_file migrate.sql; }
 [ "$(has_tbl material_categories)" = "0" ] && [ -f "$LOCAL_DIR/migrate2.sql" ] && { echo "   增量 → 学习资料"; run_sql_file migrate2.sql; }
-[ "$(has_tbl forum_categories)" = "0" ] && [ -f "$LOCAL_DIR/migrate3.sql" ] && { echo "   增量 → 论坛/问答/通知"; run_sql_file migrate3.sql; }
+[ "$(has_tbl notifications)" = "0" ] && [ -f "$LOCAL_DIR/migrate3.sql" ] && { echo "   增量 → 消息通知"; run_sql_file migrate3.sql; }
 [ "$(has_tbl captcha)" = "0" ] && [ -f "$LOCAL_DIR/migrate4.sql" ] && { echo "   增量 → 验证码/邀请码"; run_sql_file migrate4.sql; }
 echo "   迁移检查完成"
 

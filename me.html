@@ -63,6 +63,10 @@
   .modal .mbtn{width:100%;margin-top:18px;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border:none;border-radius:11px;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
   .modal .alt{text-align:center;font-size:13px;color:var(--muted);margin-top:14px}.modal .alt a{color:var(--blue);cursor:pointer;text-decoration:none;font-weight:600}
   .modal .close{position:absolute;right:14px;top:12px;font-size:20px;color:var(--muted);cursor:pointer;line-height:1}
+  .captcha-row{display:flex;gap:10px;align-items:center}
+  .captcha-row input{flex:1;min-width:0}
+  .captcha-img{width:120px;height:42px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer;background:#f7fbff}
+  .captcha-img:active{transform:scale(.97)}
 </style>
 </head>
 <body>
@@ -130,31 +134,41 @@
 <div class="mask" id="loginMask"><div class="modal">
   <span class="close" data-close="loginMask">×</span><h3>登录</h3><label>用户名</label><input type="text" id="l_user" placeholder="用户名" autocomplete="username">
   <label>密码</label><input type="password" id="l_pwd" placeholder="密码" autocomplete="current-password">
+  <label>验证码</label>
+  <div class="captcha-row"><input type="text" id="l_cap" placeholder="输入右侧 4 位数字" maxlength="4" autocomplete="off"><img class="captcha-img" id="l_capimg" alt="验证码，点击刷新" title="点击刷新"></div>
   <button class="mbtn" id="l_submit">登 录</button><p class="alt">还没有账号？<a id="toReg">立即注册</a></p>
 </div></div>
 <div class="mask" id="regMask"><div class="modal">
   <span class="close" data-close="regMask">×</span><h3>注册</h3><label>用户名（3-20位）</label><input type="text" id="r_user" placeholder="用户名" autocomplete="username">
   <label>昵称（可选）</label><input type="text" id="r_nick" placeholder="昵称" maxlength="50">
   <label>密码（至少6位）</label><input type="password" id="r_pwd" placeholder="密码" autocomplete="new-password">
+  <label>邀请码（注册必填）</label><input type="text" id="r_inv" placeholder="请输入邀请码" maxlength="32" autocomplete="off">
+  <label>验证码</label>
+  <div class="captcha-row"><input type="text" id="r_cap" placeholder="输入右侧 4 位数字" maxlength="4" autocomplete="off"><img class="captcha-img" id="r_capimg" alt="验证码，点击刷新" title="点击刷新"></div>
   <button class="mbtn" id="r_submit">注 册</button><p class="alt">已有账号？<a id="toLogin">去登录</a></p>
 </div></div>
 
 <script>
 const API='api.php';let TOKEN=localStorage.getItem('bb_token')||'',ME=null,curSub='all',myData=null;
 const CAT_LBL={love:'👤 寻人',lost:'🔎 寻物',help:'🙋 求助',chat:'💬 吐槽',other:'✨ 其他'};
+let curCap={login:'',reg:''};
+async function loadCaptcha(kind){try{const r=await fetch(API+'?action=captcha');const d=await r.json();if(!d.ok)return;if(kind==='login'){curCap.login=d.cid;document.getElementById('l_capimg').src=d.image;document.getElementById('l_cap').value='';}else{curCap.reg=d.cid;document.getElementById('r_capimg').src=d.image;document.getElementById('r_cap').value='';}}catch(_){}}
+function openAuth(kind){closeMask('loginMask');closeMask('regMask');if(kind==='login'){openMask('loginMask');loadCaptcha('login');}else{openMask('regMask');loadCaptcha('reg');}}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 function esc(s){return s==null?'':String(s);}
 function stLabel(s){return s==1?'<span class="st st1">已通过</span>':(s==2?'<span class="st st2">已拒绝</span>':'<span class="st st0">审核中</span>');}
 async function refreshUser(){if(!TOKEN){ME=null;renderAuth();return;}try{const r=await fetch(API+'?action=me&token='+encodeURIComponent(TOKEN));const d=await r.json();if(d.ok)ME=d;else{TOKEN='';localStorage.removeItem('bb_token');ME=null;}}catch(_){}renderAuth();}
-function renderAuth(){const a=document.getElementById('authArea');if(ME){const L=(ME.nickname||ME.username||'?')[0].toUpperCase();a.innerHTML='<div class="user-chip"><div class="av">'+L+'</div><span class="nm">'+esc(ME.nickname)+'</span><button class="btn-ghost" id="logoutBtn">退出</button></div>';document.getElementById('logoutBtn').onclick=logout;}else{a.innerHTML='<button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button>';document.getElementById('loginBtn').onclick=()=>openMask('loginMask');document.getElementById('regBtn').onclick=()=>openMask('regMask');}}
+function renderAuth(){const a=document.getElementById('authArea');if(ME){const L=(ME.nickname||ME.username||'?')[0].toUpperCase();a.innerHTML='<div class="user-chip"><div class="av">'+L+'</div><span class="nm">'+esc(ME.nickname)+'</span><button class="btn-ghost" id="logoutBtn">退出</button></div>';document.getElementById('logoutBtn').onclick=logout;}else{a.innerHTML='<button class="btn-ghost" id="loginBtn">登录</button><button class="btn-ghost" id="regBtn">注册</button>';document.getElementById('loginBtn').onclick=()=>openAuth('login');document.getElementById('regBtn').onclick=()=>openAuth('reg');}}
 function logout(){if(TOKEN)fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=logout&token='+encodeURIComponent(TOKEN)}).catch(()=>{});TOKEN='';ME=null;localStorage.removeItem('bb_token');renderAuth();toast('已退出');location.reload();}
 function openMask(id){document.getElementById(id).classList.add('show');}function closeMask(id){document.getElementById(id).classList.remove('show');}
 document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>closeMask(x.dataset.close));
-document.getElementById('toReg').onclick=()=>{closeMask('loginMask');openMask('regMask');};
-document.getElementById('toLogin').onclick=()=>{closeMask('regMask');openMask('loginMask');};
+document.getElementById('toReg').onclick=()=>openAuth('reg');
+document.getElementById('toLogin').onclick=()=>openAuth('login');
+document.getElementById('l_capimg').onclick=()=>loadCaptcha('login');
+document.getElementById('r_capimg').onclick=()=>loadCaptcha('reg');
 document.querySelectorAll('.mask').forEach(m=>m.onclick=e=>{if(e.target===m)closeMask(m.id);});
-document.getElementById('l_submit').onclick=async()=>{const u=document.getElementById('l_user').value.trim(),pw=document.getElementById('l_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const fd=new FormData();fd.append('action','login');fd.append('username',u);fd.append('password',pw);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('loginMask');renderAuth();toast('登录成功');location.reload();}else toast(d.msg);};
-document.getElementById('r_submit').onclick=async()=>{const u=document.getElementById('r_user').value.trim(),nick=document.getElementById('r_nick').value.trim(),pw=document.getElementById('r_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const fd=new FormData();fd.append('action','register');fd.append('username',u);fd.append('password',pw);if(nick)fd.append('nickname',nick);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功');location.reload();}else toast(d.msg);};
+document.getElementById('l_submit').onclick=async()=>{const u=document.getElementById('l_user').value.trim(),pw=document.getElementById('l_pwd').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}const cap=document.getElementById('l_cap').value.trim();if(!cap){toast('请填写验证码');return;}const fd=new FormData();fd.append('action','login');fd.append('username',u);fd.append('password',pw);fd.append('cid',curCap.login);fd.append('captcha',cap);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('loginMask');renderAuth();toast('登录成功');location.reload();}else{toast(d.msg);loadCaptcha('login');}};
+document.getElementById('r_submit').onclick=async()=>{const u=document.getElementById('r_user').value.trim(),nick=document.getElementById('r_nick').value.trim(),pw=document.getElementById('r_pwd').value.trim(),inv=document.getElementById('r_inv').value.trim(),cap=document.getElementById('r_cap').value.trim();if(!u||!pw){toast('请填写用户名和密码');return;}if(!inv){toast('请填写邀请码');return;}if(!cap){toast('请填写验证码');return;}const fd=new FormData();fd.append('action','register');fd.append('username',u);fd.append('password',pw);if(nick)fd.append('nickname',nick);fd.append('invite',inv);fd.append('cid',curCap.reg);fd.append('captcha',cap);const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功');location.reload();}else{toast(d.msg);loadCaptcha('reg');}};
 
 function setTab(){document.querySelectorAll('.tabs button[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button[data-tab]').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('panel-'+b.dataset.tab).classList.add('active');if(b.dataset.tab==='noti')loadNoti();if(b.dataset.tab==='setting'){document.getElementById('nick').value=ME?ME.nickname:'';}});}
 setTab();

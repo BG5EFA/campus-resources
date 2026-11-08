@@ -1,6 +1,6 @@
 <?php
 /**
- * 校园墙 + 学习专区 + 树洞 + 问答 + 论坛 + 个人中心
+ * 校园墙 + 学习专区 + 个人中心
  * 单文件路由，action 驱动。部署：/www/wwwroot/biaobai/api.php
  */
 
@@ -341,7 +341,7 @@ if ($action === '' && $method === 'POST' && intval($_SERVER['CONTENT_LENGTH'] ??
 
 // ===== 全站发布规则：所有会产生公开内容的写操作一律要求登录 =====
 // 新增发布类接口时，只需把 action 加进这个数组，门禁自动生效；点赞/举报等轻互动不在此列
-$publish_actions = ['create', 'comment_add', 'qa_ask', 'qa_answer', 'forum_post', 'forum_reply', 'material_upload'];
+$publish_actions = ['create', 'comment_add', 'material_upload'];
 $pub_user = null;
 if (in_array($action, $publish_actions, true)) {
     $pub_user = require_user($pdo);
@@ -352,14 +352,14 @@ if (in_array($action, $publish_actions, true)) {
 
 switch ($action) {
 
-    // ===== 帖子：列表（board: 0校园墙 1树洞 2论坛；支持分类与关键词）=====
+    // ===== 帖子：列表（校园墙；支持分类与关键词）=====
     case 'list':
         $page = max(1, intval($_GET['page'] ?? 1));
         $per = 10;
         $offset = ($page - 1) * $per;
-        $board = intval($_GET['board'] ?? 0);
-        $params = [':board' => $board];
-        $where = 'WHERE p.status = 1 AND p.board = :board';
+        // board 为历史字段，站点仅保留校园墙（0），忽略外部传入值
+        $params = [];
+        $where = 'WHERE p.status = 1 AND p.board = 0';
         $cat = trim((string) ($_GET['category'] ?? ''));
         if ($cat !== '' && in_array($cat, post_categories(), true)) {
             $where .= ' AND p.category = :cat';
@@ -388,6 +388,7 @@ switch ($action) {
     // board >= 0 取指定板块；board < 0 取全部（后台管理用）
     case 'featured_list':
         $board = intval($_GET['board'] ?? 0);
+        if ($board > 0) $board = 0; // 站点仅保留校园墙
         $whereBoard = $board >= 0 ? ' AND p.board = ' . $board : '';
         // board < 0 为后台管理入口：仅管理员登录时附带作者信息，公开访问一律脱敏
         $adm = require_admin($pdo);
@@ -407,24 +408,17 @@ switch ($action) {
     // ===== 帖子：发布（进入待审核）=====
     case 'create':
         if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $board = intval($_POST['board'] ?? 0);
-        if (!in_array($board, [0, 1, 2], true)) $board = 0;
+        $board = 0; // 站点仅保留校园墙
         $cat = trim((string) ($_POST['category'] ?? 'other'));
         if (!in_array($cat, post_categories(), true)) $cat = 'other';
         $title = null;
-        if ($board === 2) {
-            $title = trim($_POST['title'] ?? '');
-            if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '论坛标题需 2-150 字'], 400);
-        }
         $content = trim($_POST['content'] ?? '');
-        $max = $board === 2 ? 2000 : 500;
-        if (mb_strlen($content) < 1 || mb_strlen($content) > $max) json_out(['ok' => false, 'msg' => '内容需在 1-' . $max . ' 字之间'], 400);
+        if (mb_strlen($content) < 1 || mb_strlen($content) > 500) json_out(['ok' => false, 'msg' => '内容需在 1-500 字之间'], 400);
         $nicknameRaw = trim($_POST['nickname'] ?? '');
         $anon = isset($_POST['anonymous']) && $_POST['anonymous'] === '1';
-        if ($board === 1) $anon = true; // 树洞强制匿名
         $user = $pub_user; // 统一发布门禁已保证登录；这里只决定前台显示名
         if ($anon) {
-            $nickname = '匿名'; // 校园墙 / 树洞看到的是匿名
+            $nickname = '匿名'; // 前台只显示「匿名」
         } else {
             $nickname = $nicknameRaw !== '' ? mb_substr($nicknameRaw, 0, 50) : $user['nickname'];
         }
@@ -482,11 +476,10 @@ switch ($action) {
         if (mb_strlen($content) < 1 || mb_strlen($content) > 200) json_out(['ok' => false, 'msg' => '评论需在 1-200 字之间'], 400);
         $nicknameRaw = trim($_POST['nickname'] ?? '');
         $anon = isset($_POST['anonymous']) && $_POST['anonymous'] === '1';
-        $post = $pdo->prepare('SELECT id, user_id, board FROM posts WHERE id = ? AND status = 1');
+        $post = $pdo->prepare('SELECT id, user_id FROM posts WHERE id = ? AND status = 1');
         $post->execute([$id]);
         $prow = $post->fetch();
         if (!$prow) json_out(['ok' => false, 'msg' => '帖子不存在或未通过审核'], 400);
-        if ($prow['board'] == 1) $anon = true; // 树洞评论强制匿名
         $user = $pub_user; // 统一发布门禁已保证登录
         if ($anon) {
             $nickname = '匿名';
@@ -530,7 +523,7 @@ switch ($action) {
         if (!$row) json_out(['ok' => false, 'msg' => '评论不存在'], 404);
         $pdo->prepare('UPDATE comments SET status = ? WHERE id = ?')->execute([$st, $id]);
         if ($st === 1 && $row['post_uid']) {
-            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的' . ($row['board'] == 2 ? '帖子' : '内容') . '有一条新评论通过审核：' . mb_substr($row['content'], 0, 30));
+            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的内容有一条新评论通过审核：' . mb_substr($row['content'], 0, 30));
         }
         json_out(['ok' => true, 'msg' => $st === 1 ? '已通过' : '已拒绝']);
         break;
@@ -659,9 +652,8 @@ switch ($action) {
         $uid = $user['id'];
         $posts = $pdo->query("SELECT id, board, title, content, status, created_at FROM posts WHERE user_id = $uid ORDER BY created_at DESC LIMIT 20")->fetchAll();
         $mats = $pdo->query("SELECT id, title, status, downloads, created_at FROM materials WHERE user_id = $uid ORDER BY created_at DESC LIMIT 20")->fetchAll();
-        $qs = $pdo->query("SELECT id, title, answer_count, created_at FROM questions WHERE user_id = $uid ORDER BY created_at DESC LIMIT 20")->fetchAll();
-        $ts = $pdo->query("SELECT id, title, reply_count, created_at FROM forum_topics WHERE user_id = $uid ORDER BY created_at DESC LIMIT 20")->fetchAll();
-        json_out(['ok' => true, 'posts' => $posts, 'materials' => $mats, 'questions' => $qs, 'topics' => $ts]);
+        // 论坛 / 问答已下线，保留空数组以兼容旧版缓存页面
+        json_out(['ok' => true, 'posts' => $posts, 'materials' => $mats, 'questions' => [], 'topics' => []]);
         break;
 
     // ===== 用户：收藏 / 取消收藏（仅登录本人，帖子须存在）=====
@@ -728,228 +720,9 @@ switch ($action) {
         json_out(['ok' => true]);
         break;
 
-    // ===== 问答：列表 =====
-    case 'qa_list':
-        $page = max(1, intval($_GET['page'] ?? 1));
-        $per = 10;
-        $offset = ($page - 1) * $per;
-        $q = trim($_GET['q'] ?? '');
-        $where = 'WHERE q.status = 1';
-        $params = [];
-        if ($q !== '') { $where .= ' AND (q.title LIKE ? OR q.content LIKE ?)'; $params[] = "%$q%"; $params[] = "%$q%"; }
-        $sql = "SELECT q.*, u.nickname AS asker FROM questions q LEFT JOIN users u ON u.id = q.user_id $where ORDER BY q.created_at DESC LIMIT $per OFFSET $offset";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll();
-        $c = $pdo->prepare("SELECT COUNT(*) FROM questions q $where");
-        $c->execute($params);
-        json_out(['ok' => true, 'questions' => $rows, 'page' => $page, 'per' => $per, 'total' => (int) $c->fetchColumn()]);
-        break;
-
-    // ===== 问答：详情 =====
-    case 'qa_detail':
-        $id = intval($_GET['id'] ?? 0);
-        $q = $pdo->prepare('SELECT q.*, u.nickname AS asker FROM questions q LEFT JOIN users u ON u.id = q.user_id WHERE q.id = ? AND q.status = 1');
-        $q->execute([$id]);
-        $qq = $q->fetch();
-        if (!$qq) json_out(['ok' => false, 'msg' => '问题不存在'], 404);
-        $pdo->prepare('UPDATE questions SET views = views + 1 WHERE id = ?')->execute([$id]);
-        $a = $pdo->prepare('SELECT a.*, u.nickname AS answerer FROM answers a LEFT JOIN users u ON u.id = a.user_id WHERE a.question_id = ? AND a.status = 1 ORDER BY a.accepted DESC, a.likes DESC, a.created_at ASC');
-        $a->execute([$id]);
-        json_out(['ok' => true, 'question' => $qq, 'answers' => $a->fetchAll()]);
-        break;
-
-    // ===== 问答：提问（需登录）=====
-    case 'qa_ask':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $user = require_user($pdo);
-        if (!$user) json_out(['ok' => false, 'msg' => '请先登录'], 401);
-        $title = trim($_POST['title'] ?? '');
-        $content = trim($_POST['content'] ?? '');
-        if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '标题需 2-150 字'], 400);
-        if (mb_strlen($content) < 1 || mb_strlen($content) > 1000) json_out(['ok' => false, 'msg' => '内容需 1-1000 字'], 400);
-        $title = filter_bad_words($pdo, $title);
-        $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO questions (user_id, title, content, ip) VALUES (?, ?, ?, ?)')->execute([$user['id'], $title, $content, get_client_ip()]);
-        json_out(['ok' => true, 'msg' => '发布成功']);
-        break;
-
-    // ===== 问答：回答（需登录）=====
-    case 'qa_answer':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $user = require_user($pdo);
-        if (!$user) json_out(['ok' => false, 'msg' => '请先登录'], 401);
-        $id = intval($_POST['question_id'] ?? 0);
-        $content = trim($_POST['content'] ?? '');
-        if (mb_strlen($content) < 1 || mb_strlen($content) > 800) json_out(['ok' => false, 'msg' => '回答需 1-800 字'], 400);
-        $q = $pdo->prepare('SELECT id, user_id FROM questions WHERE id = ? AND status = 1');
-        $q->execute([$id]);
-        $qq = $q->fetch();
-        if (!$qq) json_out(['ok' => false, 'msg' => '问题不存在'], 404);
-        $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO answers (question_id, user_id, content) VALUES (?, ?, ?)')->execute([$id, $user['id'], $content]);
-        $pdo->prepare('UPDATE questions SET answer_count = answer_count + 1 WHERE id = ?')->execute([$id]);
-        if ($qq['user_id'] && $qq['user_id'] != $user['id']) {
-            add_notification($pdo, $qq['user_id'], 'answer', $id, '有人回答了你的问题：' . mb_substr($content, 0, 30));
-        }
-        json_out(['ok' => true, 'msg' => '回答成功']);
-        break;
-
-    // ===== 问答：问题点赞（IP 去重）=====
-    case 'qa_like':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $id = intval($_POST['id'] ?? 0);
-        $ip = get_client_ip();
-        $chk = $pdo->prepare('SELECT 1 FROM likes WHERE entity_type = "question" AND entity_id = ? AND ip = ?');
-        $chk->execute([$id, $ip]);
-        if ($chk->fetch()) json_out(['ok' => false, 'msg' => '已点赞']);
-        $pdo->prepare('INSERT INTO likes (entity_type, entity_id, ip) VALUES ("question", ?, ?)')->execute([$id, $ip]);
-        $pdo->prepare('UPDATE questions SET likes = likes + 1 WHERE id = ?')->execute([$id]);
-        $l = $pdo->prepare('SELECT likes FROM questions WHERE id = ?');
-        $l->execute([$id]);
-        json_out(['ok' => true, 'likes' => (int) $l->fetchColumn()]);
-        break;
-
-    // ===== 问答：回答点赞 =====
-    case 'qa_answer_like':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $id = intval($_POST['id'] ?? 0);
-        $ip = get_client_ip();
-        $chk = $pdo->prepare('SELECT 1 FROM likes WHERE entity_type = "answer" AND entity_id = ? AND ip = ?');
-        $chk->execute([$id, $ip]);
-        if ($chk->fetch()) json_out(['ok' => false, 'msg' => '已点赞']);
-        $pdo->prepare('INSERT INTO likes (entity_type, entity_id, ip) VALUES ("answer", ?, ?)')->execute([$id, $ip]);
-        $pdo->prepare('UPDATE answers SET likes = likes + 1 WHERE id = ?')->execute([$id]);
-        $l = $pdo->prepare('SELECT likes FROM answers WHERE id = ?');
-        $l->execute([$id]);
-        json_out(['ok' => true, 'likes' => (int) $l->fetchColumn()]);
-        break;
-
-    // ===== 问答：采纳回答（仅题主）=====
-    case 'qa_answer_accept':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $user = require_user($pdo);
-        if (!$user) json_out(['ok' => false, 'msg' => '请先登录'], 401);
-        $aid = intval($_POST['answer_id'] ?? 0);
-        $a = $pdo->prepare('SELECT a.id, a.question_id, q.user_id FROM answers a JOIN questions q ON q.id = a.question_id WHERE a.id = ?');
-        $a->execute([$aid]);
-        $row = $a->fetch();
-        if (!$row) json_out(['ok' => false, 'msg' => '回答不存在'], 404);
-        if ($row['user_id'] != $user['id']) json_out(['ok' => false, 'msg' => '只能采纳自己问题的回答'], 403);
-        $pdo->prepare('UPDATE answers SET accepted = 0 WHERE question_id = ?')->execute([$row['question_id']]);
-        $pdo->prepare('UPDATE answers SET accepted = 1 WHERE id = ?')->execute([$aid]);
-        json_out(['ok' => true]);
-        break;
-
-    // ===== 论坛：列表 =====
-    case 'forum_list':
-        $page = max(1, intval($_GET['page'] ?? 1));
-        $per = 10;
-        $offset = ($page - 1) * $per;
-        $cat = intval($_GET['category'] ?? 0);
-        $q = trim($_GET['q'] ?? '');
-        $where = 'WHERE t.status = 1';
-        $params = [];
-        if ($cat > 0) { $where .= ' AND t.category_id = ?'; $params[] = $cat; }
-        if ($q !== '') { $where .= ' AND (t.title LIKE ? OR t.content LIKE ?)'; $params[] = "%$q%"; $params[] = "%$q%"; }
-        $sql = "SELECT t.*, c.name AS category_name, u.nickname AS author FROM forum_topics t LEFT JOIN forum_categories c ON c.id = t.category_id LEFT JOIN users u ON u.id = t.user_id $where ORDER BY t.created_at DESC LIMIT $per OFFSET $offset";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll();
-        $c = $pdo->prepare("SELECT COUNT(*) FROM forum_topics t $where");
-        $c->execute($params);
-        json_out(['ok' => true, 'topics' => $rows, 'page' => $page, 'per' => $per, 'total' => (int) $c->fetchColumn()]);
-        break;
-
-    // ===== 论坛：详情 =====
-    case 'forum_detail':
-        $id = intval($_GET['id'] ?? 0);
-        $t = $pdo->prepare('SELECT t.*, c.name AS category_name, u.nickname AS author FROM forum_topics t LEFT JOIN forum_categories c ON c.id = t.category_id LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ? AND t.status = 1');
-        $t->execute([$id]);
-        $tt = $t->fetch();
-        if (!$tt) json_out(['ok' => false, 'msg' => '帖子不存在'], 404);
-        $pdo->prepare('UPDATE forum_topics SET views = views + 1 WHERE id = ?')->execute([$id]);
-        $r = $pdo->prepare('SELECT r.*, u.nickname AS replier FROM forum_replies r LEFT JOIN users u ON u.id = r.user_id WHERE r.topic_id = ? AND r.status = 1 ORDER BY r.created_at ASC');
-        $r->execute([$id]);
-        json_out(['ok' => true, 'topic' => $tt, 'replies' => $r->fetchAll()]);
-        break;
-
-    // ===== 论坛：发帖（需登录）=====
-    case 'forum_post':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $user = require_user($pdo);
-        if (!$user) json_out(['ok' => false, 'msg' => '请先登录'], 401);
-        $title = trim($_POST['title'] ?? '');
-        $content = trim($_POST['content'] ?? '');
-        $cat = intval($_POST['category_id'] ?? 0);
-        if (mb_strlen($title) < 2 || mb_strlen($title) > 150) json_out(['ok' => false, 'msg' => '标题需 2-150 字'], 400);
-        if (mb_strlen($content) < 1 || mb_strlen($content) > 2000) json_out(['ok' => false, 'msg' => '内容需 1-2000 字'], 400);
-        $title = filter_bad_words($pdo, $title);
-        $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO forum_topics (user_id, category_id, title, content, ip) VALUES (?, ?, ?, ?, ?)')->execute([$user['id'], $cat, $title, $content, get_client_ip()]);
-        json_out(['ok' => true, 'msg' => '发布成功']);
-        break;
-
-    // ===== 论坛：回复（需登录）=====
-    case 'forum_reply':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $user = require_user($pdo);
-        if (!$user) json_out(['ok' => false, 'msg' => '请先登录'], 401);
-        $id = intval($_POST['topic_id'] ?? 0);
-        $content = trim($_POST['content'] ?? '');
-        if (mb_strlen($content) < 1 || mb_strlen($content) > 800) json_out(['ok' => false, 'msg' => '回复需 1-800 字'], 400);
-        $t = $pdo->prepare('SELECT id, user_id FROM forum_topics WHERE id = ? AND status = 1');
-        $t->execute([$id]);
-        $tt = $t->fetch();
-        if (!$tt) json_out(['ok' => false, 'msg' => '帖子不存在'], 404);
-        $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO forum_replies (topic_id, user_id, content) VALUES (?, ?, ?)')->execute([$id, $user['id'], $content]);
-        $pdo->prepare('UPDATE forum_topics SET reply_count = reply_count + 1 WHERE id = ?')->execute([$id]);
-        if ($tt['user_id'] && $tt['user_id'] != $user['id']) {
-            add_notification($pdo, $tt['user_id'], 'reply', $id, '有人回复了你的帖子：' . mb_substr($content, 0, 30));
-        }
-        json_out(['ok' => true, 'msg' => '回复成功']);
-        break;
-
-    // ===== 论坛：帖子点赞 =====
-    case 'forum_like':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $id = intval($_POST['id'] ?? 0);
-        $ip = get_client_ip();
-        $chk = $pdo->prepare('SELECT 1 FROM likes WHERE entity_type = "forum_topic" AND entity_id = ? AND ip = ?');
-        $chk->execute([$id, $ip]);
-        if ($chk->fetch()) json_out(['ok' => false, 'msg' => '已点赞']);
-        $pdo->prepare('INSERT INTO likes (entity_type, entity_id, ip) VALUES ("forum_topic", ?, ?)')->execute([$id, $ip]);
-        $pdo->prepare('UPDATE forum_topics SET likes = likes + 1 WHERE id = ?')->execute([$id]);
-        $l = $pdo->prepare('SELECT likes FROM forum_topics WHERE id = ?');
-        $l->execute([$id]);
-        json_out(['ok' => true, 'likes' => (int) $l->fetchColumn()]);
-        break;
-
-    // ===== 论坛：回复点赞 =====
-    case 'forum_reply_like':
-        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
-        $id = intval($_POST['id'] ?? 0);
-        $ip = get_client_ip();
-        $chk = $pdo->prepare('SELECT 1 FROM likes WHERE entity_type = "forum_reply" AND entity_id = ? AND ip = ?');
-        $chk->execute([$id, $ip]);
-        if ($chk->fetch()) json_out(['ok' => false, 'msg' => '已点赞']);
-        $pdo->prepare('INSERT INTO likes (entity_type, entity_id, ip) VALUES ("forum_reply", ?, ?)')->execute([$id, $ip]);
-        $pdo->prepare('UPDATE forum_replies SET likes = likes + 1 WHERE id = ?')->execute([$id]);
-        $l = $pdo->prepare('SELECT likes FROM forum_replies WHERE id = ?');
-        $l->execute([$id]);
-        json_out(['ok' => true, 'likes' => (int) $l->fetchColumn()]);
-        break;
-
     // ===== 资料：分类列表 =====
     case 'material_categories':
         $rows = $pdo->query('SELECT * FROM material_categories ORDER BY sort ASC, id ASC')->fetchAll();
-        json_out(['ok' => true, 'categories' => $rows]);
-        break;
-
-    // ===== 论坛：分类列表 =====
-    case 'forum_categories':
-        $rows = $pdo->query('SELECT * FROM forum_categories ORDER BY sort ASC, id ASC')->fetchAll();
         json_out(['ok' => true, 'categories' => $rows]);
         break;
 
@@ -1101,11 +874,11 @@ switch ($action) {
         } else {
             $pdo->prepare('UPDATE posts SET status = ? WHERE id = ?')->execute([$st, $id]);
         }
-        $p = $pdo->prepare('SELECT user_id, board FROM posts WHERE id = ?');
+        $p = $pdo->prepare('SELECT user_id FROM posts WHERE id = ?');
         $p->execute([$id]);
         $row = $p->fetch();
         if ($row && $row['user_id']) {
-            $label = $row['board'] == 2 ? '论坛帖子' : '校园墙内容';
+            $label = '校园墙内容';
             $msg = $st === 1 ? "你的{$label}已通过审核" : "你的{$label}未通过审核";
             add_notification($pdo, $row['user_id'], 'post_' . ($st === 1 ? 'approved' : 'rejected'), $id, $msg);
         }
@@ -1185,17 +958,6 @@ switch ($action) {
             if (is_file($fp)) @unlink($fp);
         }
         $pdo->prepare('DELETE FROM materials WHERE id = ?')->execute([$id]);
-        json_out(['ok' => true]);
-        break;
-
-    // ===== 后台：问答/论坛删除 =====
-    case 'admin_qa_delete':
-    case 'admin_forum_delete':
-        $adm = require_admin($pdo);
-        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
-        $id = intval($_POST['id'] ?? 0);
-        if ($action === 'admin_qa_delete') $pdo->prepare('UPDATE questions SET status = 2 WHERE id = ?')->execute([$id]);
-        else $pdo->prepare('UPDATE forum_topics SET status = 2 WHERE id = ?')->execute([$id]);
         json_out(['ok' => true]);
         break;
 
@@ -1314,8 +1076,6 @@ switch ($action) {
             'rejected'  => (int) $pdo->query("SELECT COUNT(*) FROM posts WHERE status = 2")->fetchColumn(),
             'mat_pending' => (int) $pdo->query("SELECT COUNT(*) FROM materials WHERE status = 0")->fetchColumn(),
             'mat_approved'=> (int) $pdo->query("SELECT COUNT(*) FROM materials WHERE status = 1")->fetchColumn(),
-            'questions' => (int) $pdo->query("SELECT COUNT(*) FROM questions WHERE status = 1")->fetchColumn(),
-            'topics'    => (int) $pdo->query("SELECT COUNT(*) FROM forum_topics WHERE status = 1")->fetchColumn(),
             'comments'  => (int) $pdo->query("SELECT COUNT(*) FROM comments")->fetchColumn(),
             'users'     => (int) $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn(),
             'today_posts'    => $safeCount('SELECT COUNT(*) FROM posts WHERE DATE(created_at) = CURDATE()'),
@@ -1370,8 +1130,6 @@ switch ($action) {
         $rows = $pdo->query(
             "SELECT u.id, u.username, u.nickname, u.created_at, u.status, u.banned_at, u.ban_reason, u.last_ip,
                     (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) AS cnt_posts,
-                    (SELECT COUNT(*) FROM questions q WHERE q.user_id = u.id) AS cnt_questions,
-                    (SELECT COUNT(*) FROM forum_topics t WHERE t.user_id = u.id) AS cnt_topics,
                     (SELECT COUNT(*) FROM materials m WHERE m.user_id = u.id) AS cnt_materials,
                     (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id) AS cnt_comments
              FROM users u $where ORDER BY u.created_at DESC LIMIT 500"
@@ -1422,8 +1180,6 @@ switch ($action) {
         // 级联删除用户相关的所有内容与会话
         $pdo->prepare('DELETE FROM user_tokens WHERE user_id = ?')->execute([$uid]);
         $pdo->prepare('DELETE FROM materials WHERE user_id = ?')->execute([$uid]);
-        $pdo->prepare('DELETE FROM forum_topics WHERE user_id = ?')->execute([$uid]);
-        $pdo->prepare('DELETE FROM questions WHERE user_id = ?')->execute([$uid]);
         $pdo->prepare('DELETE FROM comments WHERE user_id = ?')->execute([$uid]);
         $pdo->prepare('DELETE FROM posts WHERE user_id = ?')->execute([$uid]);
         $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$uid]);
@@ -1438,16 +1194,12 @@ switch ($action) {
         if ($uid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
         $posts = $pdo->prepare("SELECT 'post' AS type, id, title, content, category, status, created_at, ip FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $posts->execute([$uid]);
-        $questions = $pdo->prepare("SELECT 'question' AS type, id, title, content, NULL AS category, status, created_at, ip FROM questions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
-        $questions->execute([$uid]);
-        $topics = $pdo->prepare("SELECT 'topic' AS type, id, title, content, NULL AS category, status, created_at, ip FROM forum_topics WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
-        $topics->execute([$uid]);
         $materials = $pdo->prepare("SELECT 'material' AS type, id, title AS content, description, NULL AS category, status, created_at, ip FROM materials WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $materials->execute([$uid]);
         $comments = $pdo->prepare("SELECT 'comment' AS type, id, content, NULL AS title, NULL AS category, NULL AS status, created_at, ip FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $comments->execute([$uid]);
         json_out(['ok' => true, 'contents' => array_merge(
-            $posts->fetchAll(), $questions->fetchAll(), $topics->fetchAll(), $materials->fetchAll(), $comments->fetchAll()
+            $posts->fetchAll(), $materials->fetchAll(), $comments->fetchAll()
         )]);
         break;
 
@@ -1580,10 +1332,8 @@ switch ($action) {
         json_out(['ok' => true]);
         break;
 
-    // ===== 后台：编辑文本内容（帖子/问答/论坛/评论）=====
+    // ===== 后台：编辑文本内容（帖子 / 评论）=====
     case 'admin_post_edit':
-    case 'admin_question_edit':
-    case 'admin_forum_edit':
     case 'admin_comment_edit':
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
@@ -1602,8 +1352,8 @@ switch ($action) {
             if ($content === '') json_out(['ok' => false, 'msg' => '评论内容不能为空'], 400);
             $pdo->prepare('UPDATE comments SET content = ? WHERE id = ?')->execute([$content, $id]);
         } else {
-            $tbl = ['admin_post_edit' => 'posts', 'admin_question_edit' => 'questions', 'admin_forum_edit' => 'forum_topics'][$act];
-            // 标题可留空：校园墙 / 树洞帖子本来就没有标题，编辑时只改正文即可
+            $tbl = 'posts';
+            // 标题可留空：校园墙帖子本来就没有标题，编辑时只改正文即可
             if ($content === '') json_out(['ok' => false, 'msg' => '正文不能为空'], 400);
             if ($cat !== null) {
                 $pdo->prepare('UPDATE posts SET title = ?, content = ?, category = ? WHERE id = ?')->execute([$title, $content, $cat, $id]);

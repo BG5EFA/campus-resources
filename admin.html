@@ -533,7 +533,7 @@
     <div id="ec_cat_wrap">
       <label>分类标签（校园墙 / 树洞帖子）</label>
       <select id="ec_cat">
-        <option value="love">💌 表白</option>
+        <option value="love">👤 寻人</option>
         <option value="lost">🔎 寻物</option>
         <option value="help">🙋 求助</option>
         <option value="chat">💬 吐槽</option>
@@ -612,7 +612,7 @@ async function loadCommentReviews(){
     d.comments.forEach(c=>box.appendChild(renderComment(c)));
   }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
 }
-const CAT_LABEL={love:'💌 表白',lost:'🔎 寻物',help:'🙋 求助',chat:'💬 吐槽',other:'✨ 其他'};
+const CAT_LABEL={love:'👤 寻人',lost:'🔎 寻物',help:'🙋 求助',chat:'💬 吐槽',other:'✨ 其他'};
 // 管理员溯源：前台匿名的内容，后台仍显示真实账号
 function authorLine(p){
   const who = p.author_username ? ('@'+esc(p.author_username)+'（'+esc(p.author_nickname||'')+'）') : '无账号记录（旧游客投稿）';
@@ -624,7 +624,7 @@ function renderComment(c){
   let html = '<div class="top"><div class="avatar">'+(esc(c.nickname)[0]||'匿').toUpperCase()+'</div>'+
     '<div><div class="name">'+esc(c.nickname)+'<span class="badge s'+c.status+'">'+badges[c.status]+'</span></div>'+
     '<div class="time">'+fmt(c.created_at)+(c.ip?' · IP '+esc(c.ip):'')+'</div>'+
-    '<div class="sub">所属：'+(esc(c.post_title)||'帖子/表白')+'</div>'+
+    '<div class="sub">所属：'+(esc(c.post_title)||'校园墙内容')+'</div>'+
     '<div class="author-line">'+authorLine(c)+'</div></div></div>';
   html += '<div class="content"></div>';
   html += '<div class="acts">'+
@@ -791,7 +791,7 @@ async function loadUsers(){
   }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
 }
 
-const UTYPE = {post:'表白/帖子', question:'问答', topic:'论坛', material:'资料', comment:'评论'};
+const UTYPE = {post:'校园墙/帖子', question:'问答', topic:'论坛', material:'资料', comment:'评论'};
 const USTAT = {0:'待审核', 1:'已通过', 2:'已拒绝'};
 
 function renderUser(u){

@@ -68,6 +68,25 @@ function require_user($pdo)
     if (!$row || strtotime($row['expires_at']) < time()) return null;
     return $row;
 }
+// 公开接口脱敏：前台绝不返回作者 user_id / IP（否则「匿名」形同虚设）
+// 仅向当前登录者返回 is_mine，用于显示「删除自己的内容」，不泄露他人身份
+function public_posts($pdo, $rows)
+{
+    $viewer = require_user($pdo);
+    $vid = $viewer ? (int) $viewer['id'] : 0;
+    foreach ($rows as &$r) {
+        $r['is_mine'] = ($vid && !empty($r['user_id']) && (int) $r['user_id'] === $vid) ? 1 : 0;
+        unset($r['user_id'], $r['ip']);
+    }
+    unset($r);
+    return $rows;
+}
+function public_comments($rows)
+{
+    foreach ($rows as &$r) { unset($r['user_id'], $r['ip']); }
+    unset($r);
+    return $rows;
+}
 function add_notification($pdo, $user_id, $type, $ref_id, $message)
 {
     if (!$user_id) return;
@@ -307,6 +326,17 @@ if ($action === '' && $method === 'POST' && intval($_SERVER['CONTENT_LENGTH'] ??
     json_out(['ok' => false, 'msg' => '上传内容过大或被截断，请压缩后重试（图片 ≤10MB，资料 ≤30MB）'], 400);
 }
 
+// ===== 全站发布规则：所有会产生公开内容的写操作一律要求登录 =====
+// 新增发布类接口时，只需把 action 加进这个数组，门禁自动生效；点赞/举报等轻互动不在此列
+$publish_actions = ['create', 'comment_add', 'qa_ask', 'qa_answer', 'forum_post', 'forum_reply', 'material_upload'];
+$pub_user = null;
+if (in_array($action, $publish_actions, true)) {
+    $pub_user = require_user($pdo);
+    if (!$pub_user) {
+        json_out(['ok' => false, 'msg' => '请先登录后再发布（登录后仍可选择匿名）', 'need_login' => true], 401);
+    }
+}
+
 switch ($action) {
 
     // ===== 帖子：列表（board: 0校园墙 1树洞 2论坛；支持分类与关键词）=====
@@ -334,7 +364,7 @@ switch ($action) {
              LIMIT ' . intval($per) . ' OFFSET ' . intval($offset)
         );
         $stmt->execute($params);
-        $posts = $stmt->fetchAll();
+        $posts = public_posts($pdo, $stmt->fetchAll());
         $cnt = $pdo->prepare('SELECT COUNT(*) FROM posts p ' . $where);
         $cnt->execute($params);
         $total = $cnt->fetchColumn();
@@ -346,13 +376,19 @@ switch ($action) {
     case 'featured_list':
         $board = intval($_GET['board'] ?? 0);
         $whereBoard = $board >= 0 ? ' AND p.board = ' . $board : '';
+        // board < 0 为后台管理入口：仅管理员登录时附带作者信息，公开访问一律脱敏
+        $adm = require_admin($pdo);
+        $adminMode = ($adm && $board < 0);
+        $authorSelect = $adminMode ? ', u.username AS author_username, u.nickname AS author_nickname' : '';
+        $authorJoin = $adminMode ? ' LEFT JOIN users u ON u.id = p.user_id' : '';
         $stmt = $pdo->query(
-            'SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
-             FROM posts p
+            'SELECT p.*' . $authorSelect . ', (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+             FROM posts p' . $authorJoin . '
              WHERE p.status = 1 AND p.featured = 1' . $whereBoard . '
              ORDER BY p.featured_at DESC, p.id DESC LIMIT 12'
         );
-        json_out(['ok' => true, 'posts' => $stmt->fetchAll()]);
+        $rows = $stmt->fetchAll();
+        json_out(['ok' => true, 'posts' => $adminMode ? $rows : public_posts($pdo, $rows)]);
         break;
 
     // ===== 帖子：发布（进入待审核）=====
@@ -373,14 +409,14 @@ switch ($action) {
         $nicknameRaw = trim($_POST['nickname'] ?? '');
         $anon = isset($_POST['anonymous']) && $_POST['anonymous'] === '1';
         if ($board === 1) $anon = true; // 树洞强制匿名
-        $user = require_user($pdo);
-        if ($user && !$anon) {
-            $nickname = $nicknameRaw !== '' ? mb_substr($nicknameRaw, 0, 50) : $user['nickname'];
-            $uid = $user['id'];
+        $user = $pub_user; // 统一发布门禁已保证登录；这里只决定前台显示名
+        if ($anon) {
+            $nickname = '匿名'; // 校园墙 / 树洞看到的是匿名
         } else {
-            $nickname = '匿名';
-            $uid = $user ? $user['id'] : null;
+            $nickname = $nicknameRaw !== '' ? mb_substr($nicknameRaw, 0, 50) : $user['nickname'];
         }
+        $uid = $user['id']; // 管理员后台据此溯源；公开接口已剔除该字段
+        $isAnon = $anon ? 1 : 0;
         $image = null;
         if (!empty($_FILES['image'])) {
             $f = $_FILES['image'];
@@ -394,8 +430,8 @@ switch ($action) {
         $nickname = filter_bad_words($pdo, $nickname);
         $title = $title === null ? null : filter_bad_words($pdo, $title);
         $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO posts (nickname,title,content,image,status,user_id,board,category,ip) VALUES (?,?,?,?,0,?,?,?,?)')
-            ->execute([$nickname, $title, $content, $image, $uid, $board, $cat, get_client_ip()]);
+        $pdo->prepare('INSERT INTO posts (nickname,title,content,image,status,user_id,board,category,ip,is_anon) VALUES (?,?,?,?,0,?,?,?,?,?)')
+            ->execute([$nickname, $title, $content, $image, $uid, $board, $cat, get_client_ip(), $isAnon]);
         json_out(['ok' => true, 'msg' => '提交成功，等待审核通过后展示']);
         break;
 
@@ -422,7 +458,7 @@ switch ($action) {
         $id = intval($_GET['post_id'] ?? 0);
         $stmt = $pdo->prepare('SELECT * FROM comments WHERE post_id = ? AND status = 1 ORDER BY created_at ASC');
         $stmt->execute([$id]);
-        json_out(['ok' => true, 'comments' => $stmt->fetchAll()]);
+        json_out(['ok' => true, 'comments' => public_comments($stmt->fetchAll())]);
         break;
 
     // ===== 评论：发表（进入待审核，审核通过后才公开展示）=====
@@ -438,18 +474,18 @@ switch ($action) {
         $prow = $post->fetch();
         if (!$prow) json_out(['ok' => false, 'msg' => '帖子不存在或未通过审核'], 400);
         if ($prow['board'] == 1) $anon = true; // 树洞评论强制匿名
-        $user = require_user($pdo);
-        if ($user && !$anon) {
-            $nickname = $nicknameRaw !== '' ? mb_substr($nicknameRaw, 0, 50) : $user['nickname'];
-            $cuid = $user['id'];
-        } else {
+        $user = $pub_user; // 统一发布门禁已保证登录
+        if ($anon) {
             $nickname = '匿名';
-            $cuid = $user ? $user['id'] : null;
+        } else {
+            $nickname = $nicknameRaw !== '' ? mb_substr($nicknameRaw, 0, 50) : $user['nickname'];
         }
+        $cuid = $user['id'];
+        $isAnon = $anon ? 1 : 0;
         $nickname = filter_bad_words($pdo, $nickname);
         $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO comments (post_id, nickname, content, user_id, ip, status) VALUES (?, ?, ?, ?, ?, 0)')
-            ->execute([$id, $nickname, $content, $cuid, get_client_ip()]);
+        $pdo->prepare('INSERT INTO comments (post_id, nickname, content, user_id, ip, status, is_anon) VALUES (?, ?, ?, ?, ?, 0, ?)')
+            ->execute([$id, $nickname, $content, $cuid, get_client_ip(), $isAnon]);
         // 评论需审核，审核通过后再通知作者（见 admin_comment_approve）
         json_out(['ok' => true, 'msg' => '评论已提交，审核通过后将公开展示']);
         break;
@@ -459,7 +495,11 @@ switch ($action) {
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $status = isset($_GET['status']) ? intval($_GET['status']) : 0;
-        $stmt = $pdo->prepare('SELECT c.*, p.title AS post_title, p.board FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.status = ? ORDER BY c.created_at DESC');
+        $stmt = $pdo->prepare('SELECT c.*, p.title AS post_title, p.board,
+                    u.username AS author_username, u.nickname AS author_nickname
+                    FROM comments c JOIN posts p ON p.id = c.post_id
+                    LEFT JOIN users u ON u.id = c.user_id
+                    WHERE c.status = ? ORDER BY c.created_at DESC');
         $stmt->execute([$status]);
         json_out(['ok' => true, 'comments' => $stmt->fetchAll()]);
         break;
@@ -513,6 +553,7 @@ switch ($action) {
         if (!verify_captcha($pdo, $_POST['cid'] ?? '', $_POST['captcha'] ?? '')) {
             json_out(['ok' => false, 'msg' => '验证码错误或已过期'], 400);
         }
+        // 注册：图形验证码 + 邀请码；登录只需要图形验证码，不需要邀请码
         list($invOk, $inv) = consume_invite($pdo, $_POST['invite'] ?? '');
         if (!$invOk) json_out(['ok' => false, 'msg' => $inv], 400);
         $inviteCode = trim($_POST['invite'] ?? '');
@@ -981,11 +1022,13 @@ switch ($action) {
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $status = isset($_GET['status']) ? intval($_GET['status']) : null;
+        $sel = 'SELECT p.*, u.username AS author_username, u.nickname AS author_nickname
+                FROM posts p LEFT JOIN users u ON u.id = p.user_id';
         if ($status !== null && in_array($status, [0, 1, 2], true)) {
-            $stmt = $pdo->prepare('SELECT * FROM posts WHERE status = ? ORDER BY created_at DESC');
+            $stmt = $pdo->prepare($sel . ' WHERE p.status = ? ORDER BY p.created_at DESC');
             $stmt->execute([$status]);
         } else {
-            $stmt = $pdo->query('SELECT * FROM posts ORDER BY created_at DESC');
+            $stmt = $pdo->query($sel . ' ORDER BY p.created_at DESC');
         }
         json_out(['ok' => true, 'posts' => $stmt->fetchAll()]);
         break;
@@ -1151,8 +1194,10 @@ switch ($action) {
         $status = intval($_GET['status'] ?? 0);
         if (!in_array($status, [0, 1, 2], true)) $status = 0;
         $stmt = $pdo->prepare(
-            'SELECT r.*, LEFT(p.content, 80) AS excerpt, p.board, p.status AS post_status, p.nickname
+            'SELECT r.*, LEFT(p.content, 80) AS excerpt, p.board, p.status AS post_status, p.nickname,
+                    u.username AS author_username, u.nickname AS author_nickname
              FROM reports r LEFT JOIN posts p ON p.id = r.post_id
+             LEFT JOIN users u ON u.id = p.user_id
              WHERE r.status = ? ORDER BY r.created_at DESC LIMIT 100'
         );
         $stmt->execute([$status]);
@@ -1336,15 +1381,15 @@ switch ($action) {
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $uid = intval($_POST['user_id'] ?? 0);
         if ($uid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
-        $posts = $pdo->prepare("SELECT 'post' AS type, id, title, content, status, created_at, ip FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $posts = $pdo->prepare("SELECT 'post' AS type, id, title, content, category, status, created_at, ip FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $posts->execute([$uid]);
-        $questions = $pdo->prepare("SELECT 'question' AS type, id, title, content, status, created_at, ip FROM questions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $questions = $pdo->prepare("SELECT 'question' AS type, id, title, content, NULL AS category, status, created_at, ip FROM questions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $questions->execute([$uid]);
-        $topics = $pdo->prepare("SELECT 'topic' AS type, id, title, content, status, created_at, ip FROM forum_topics WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $topics = $pdo->prepare("SELECT 'topic' AS type, id, title, content, NULL AS category, status, created_at, ip FROM forum_topics WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $topics->execute([$uid]);
-        $materials = $pdo->prepare("SELECT 'material' AS type, id, title AS content, description, status, created_at, ip FROM materials WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $materials = $pdo->prepare("SELECT 'material' AS type, id, title AS content, description, NULL AS category, status, created_at, ip FROM materials WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $materials->execute([$uid]);
-        $comments = $pdo->prepare("SELECT 'comment' AS type, id, content, NULL AS title, NULL AS status, created_at, ip FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $comments = $pdo->prepare("SELECT 'comment' AS type, id, content, NULL AS title, NULL AS category, NULL AS status, created_at, ip FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $comments->execute([$uid]);
         json_out(['ok' => true, 'contents' => array_merge(
             $posts->fetchAll(), $questions->fetchAll(), $topics->fetchAll(), $materials->fetchAll(), $comments->fetchAll()
@@ -1492,6 +1537,12 @@ switch ($action) {
         $title = filter_bad_words($pdo, trim($_POST['title'] ?? ''));
         $content = filter_bad_words($pdo, trim($_POST['content'] ?? ''));
         $act = $action;
+        // 后台编辑弹窗可同时修改投稿分类标签（仅 posts 表有该字段）
+        $cat = null;
+        if ($act === 'admin_post_edit' && isset($_POST['category'])) {
+            $cat = trim((string) $_POST['category']);
+            if (!in_array($cat, post_categories(), true)) json_out(['ok' => false, 'msg' => '分类标签无效'], 400);
+        }
         if ($act === 'admin_comment_edit') {
             if ($content === '') json_out(['ok' => false, 'msg' => '评论内容不能为空'], 400);
             $pdo->prepare('UPDATE comments SET content = ? WHERE id = ?')->execute([$content, $id]);
@@ -1499,7 +1550,11 @@ switch ($action) {
             $tbl = ['admin_post_edit' => 'posts', 'admin_question_edit' => 'questions', 'admin_forum_edit' => 'forum_topics'][$act];
             // 标题可留空：校园墙 / 树洞帖子本来就没有标题，编辑时只改正文即可
             if ($content === '') json_out(['ok' => false, 'msg' => '正文不能为空'], 400);
-            $pdo->prepare("UPDATE `$tbl` SET title = ?, content = ? WHERE id = ?")->execute([$title, $content, $id]);
+            if ($cat !== null) {
+                $pdo->prepare('UPDATE posts SET title = ?, content = ?, category = ? WHERE id = ?')->execute([$title, $content, $cat, $id]);
+            } else {
+                $pdo->prepare("UPDATE `$tbl` SET title = ?, content = ? WHERE id = ?")->execute([$title, $content, $id]);
+            }
         }
         json_out(['ok' => true]);
         break;

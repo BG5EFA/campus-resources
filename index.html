@@ -121,7 +121,9 @@
   .feat-card.expand .feat-text{display:block}
   .feat-pic{display:block;max-width:120px;max-height:90px;object-fit:contain;border-radius:8px;
     margin-top:8px;background:#f4f9ff}
-  .feat-foot{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font-size:11px;color:var(--muted)}
+  .feat-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;font-size:11px;color:var(--muted)}
+  .feat-fav{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:10px;padding:3px 9px;font-size:11px;cursor:pointer;font-family:inherit}
+  .feat-fav.fav-on{color:var(--blue-d);border-color:var(--blue);font-weight:600}
   .feat-tip{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
 
   /* 帖子 */
@@ -152,7 +154,7 @@
   .img-mask.show{display:flex}
   .img-mask img{max-width:94vw;max-height:90vh;object-fit:contain;border-radius:10px;
     box-shadow:0 12px 40px rgba(0,0,0,.4)}
-  .post .acts{display:flex;gap:18px;align-items:center;color:var(--muted);font-size:14px;
+  .post .acts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;color:var(--muted);font-size:14px;
     border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
   .post .acts button{background:none;border:none;color:var(--muted);cursor:pointer;
     font-size:14px;display:flex;align-items:center;gap:5px;font-family:inherit}
@@ -214,6 +216,7 @@
   .cat-tag{display:inline-block;margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:#eef4ff;color:var(--blue-d);vertical-align:middle}
   .post .acts .act-mini{font-size:12px;opacity:.7}
   .post .acts .act-mini:hover{opacity:1;color:var(--blue-d)}
+  .post .acts .act-mini.fav-on{color:var(--blue-d);opacity:1;font-weight:600}
   .report-reason{width:100%;min-height:80px;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;resize:vertical;outline:none}
   .report-reason:focus{border-color:var(--blue)}
 </style>
@@ -455,7 +458,9 @@ function renderAuth(){
   const composerBody = document.getElementById('composerBody');
   if(gate) gate.classList.toggle('hidden', !!TOKEN);
   if(composerBody) composerBody.classList.toggle('hidden', !TOKEN);
-  loadPosts(true);   // 登录状态确定后再渲染，保证「删除自己的内容」/评论框状态正确
+  // 登录态确定后再渲染，保证 is_mine / is_favorited / 评论框状态正确
+  loadPosts(true);
+  loadFeatured();
 }
 function logout(){
   if(TOKEN){ fetch(API, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -491,7 +496,8 @@ async function loadPosts(reset){
   try{
     const r = await fetch(API+'?action=list&page='+page+
       (curCat ? '&category='+encodeURIComponent(curCat) : '')+
-      (curQ ? '&q='+encodeURIComponent(curQ) : ''));
+      (curQ ? '&q='+encodeURIComponent(curQ) : '')+
+      (TOKEN ? '&token='+encodeURIComponent(TOKEN) : ''));
     const data = await r.json();
     if(!data.ok){ toast(data.msg||'加载失败'); return; }
     if(data.posts.length===0 && page===1){
@@ -531,12 +537,32 @@ function openPic(src){
 imgMask.addEventListener('click', () => imgMask.classList.remove('show'));
 document.addEventListener('keydown', e => { if(e.key === 'Escape') imgMask.classList.remove('show'); });
 
+// 收藏：登录后才可操作，成功后同步同一条内容在主列表与优质专区的按钮状态
+async function toggleFavorite(pid, btn){
+  if(!TOKEN){ toast('请先登录后收藏'); openAuth('login'); return; }
+  if(btn) btn.disabled = true;
+  try{
+    const fd = new FormData();
+    fd.append('action','favorite_toggle'); fd.append('post_id', pid); fd.append('token', TOKEN);
+    const r = await fetch(API, {method:'POST', body:fd});
+    const d = await r.json();
+    if(!d.ok){ if(!handleLoginRequired(d)) toast(d.msg || '操作失败'); return; }
+    document.querySelectorAll('.act-fav[data-id="'+pid+'"]').forEach(b=>{
+      b.classList.toggle('fav-on', !!d.favorited);
+      b.textContent = d.favorited ? '★ 已收藏' : '☆ 收藏';
+    });
+    toast(d.msg || (d.favorited ? '已收藏' : '已取消收藏'));
+  }catch(_){ toast('网络错误'); }
+  finally{ if(btn) btn.disabled = false; }
+}
+
 function renderPost(p){
   const el = document.createElement('div');
   el.className = 'post';
   const avatar = escHtml(String(escName(p.nickname)[0]||'匿').toUpperCase());
   const catLabel = CATS[p.category] || CATS.other;
   const mine = Number(p.is_mine) === 1; // 公开接口不返回作者 ID，仅告知本人
+  const faved = Number(p.is_favorited) === 1;
   let html = '';
   html += '<div class="top"><div class="avatar">'+avatar+'</div>'+
           '<div><div class="name"></div>'+
@@ -549,6 +575,7 @@ function renderPost(p){
   html += '<div class="acts">'+
           '<button class="like" data-id="'+p.id+'">❤ <span class="cnt">'+(p.likes||0)+'</span></button>'+
           '<button class="cmt-toggle" data-id="'+p.id+'">💬 评论 <span>'+(p.comment_count||0)+'</span></button>'+
+          '<button class="act-mini act-fav'+(faved?' fav-on':'')+'" data-id="'+p.id+'">'+(faved?'★ 已收藏':'☆ 收藏')+'</button>'+
           '<button class="act-mini act-report" data-id="'+p.id+'">⚑ 举报</button>'+
           (mine ? '<button class="act-mini act-del" data-id="'+p.id+'">🗑 删除</button>' : '')+
           '</div>';
@@ -605,6 +632,8 @@ function renderPost(p){
     if(d.ok){ inp.value=''; toast(d.msg); }   // 评论进入审核，不即时上屏/不计数的
     else if(!handleLoginRequired(d)) toast(d.msg);
   });
+
+  el.querySelector('.act-fav').addEventListener('click', e=>toggleFavorite(p.id, e.currentTarget));
 
   const delBtn = el.querySelector('.act-del');
   if(delBtn) delBtn.addEventListener('click', async ()=>{
@@ -767,14 +796,18 @@ function renderFeatureCard(p){
   const foot=document.createElement('div'); foot.className='feat-foot';
   const who=document.createElement('span'); who.textContent='from '+escName(p.nickname);
   const nums=document.createElement('span'); nums.textContent='❤ '+(p.likes||0)+'  💬 '+(p.comment_count||0);
-  foot.appendChild(who); foot.appendChild(nums); el.appendChild(foot);
+  const favOn=Number(p.is_favorited)===1;
+  const fb=document.createElement('button'); fb.className='act-fav feat-fav'+(favOn?' fav-on':'');
+  fb.dataset.id=p.id; fb.textContent=favOn?'★ 已收藏':'☆ 收藏';
+  fb.addEventListener('click', e=>{ e.stopPropagation(); toggleFavorite(p.id, fb); });
+  foot.appendChild(who); foot.appendChild(nums); foot.appendChild(fb); el.appendChild(foot);
   el.addEventListener('click', ()=>el.classList.toggle('expand'));
   return el;
 }
 async function loadFeatured(){
   const box=document.getElementById('featBox');
   try{
-    const r=await fetch(API+'?action=featured_list&board=0');
+    const r=await fetch(API+'?action=featured_list&board=0'+(TOKEN?'&token='+encodeURIComponent(TOKEN):''));
     const d=await r.json();
     const list=(d&&d.ok&&d.posts)||[];
     if(!list.length){ box.classList.add('hidden'); return; }
@@ -817,7 +850,6 @@ document.getElementById('reportSubmit').addEventListener('click', async ()=>{
 
 document.getElementById('gateLogin').addEventListener('click', ()=>openAuth('login'));
 refreshUser();
-loadFeatured();
 </script>
 <script src="notice.js"></script>
 </body>

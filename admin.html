@@ -522,7 +522,7 @@
   </div>
 </div>
 
-<!-- 编辑文本内容弹窗（帖子/问答/论坛/评论） -->
+<!-- 编辑文本内容弹窗（帖子 / 评论） -->
 <div class="mini-mask" id="editContentMask">
   <div class="box">
     <h3 id="ec_heading">编辑文本</h3>
@@ -531,7 +531,7 @@
       <input type="text" id="ec_title" placeholder="标题，可留空" maxlength="150" autocomplete="off">
     </div>
     <div id="ec_cat_wrap">
-      <label>分类标签（校园墙 / 树洞帖子）</label>
+      <label>分类标签（校园墙帖子）</label>
       <select id="ec_cat">
         <option value="love">👤 寻人</option>
         <option value="lost">🔎 寻物</option>
@@ -707,7 +707,7 @@ function render(p){
 // 审核面板：编辑帖子/匿名帖文本
 function openEditPostCard(p){
   editEid=p.id; editEtype='post'; editUid3=''; // ''=从审核面板入口，保存后刷新列表
-  document.getElementById('ec_heading').textContent='编辑文本 / 分类标签（校园墙 / 树洞）';
+  document.getElementById('ec_heading').textContent='编辑文本 / 分类标签（校园墙）';
   document.getElementById('ec_title_wrap').style.display='';
   document.getElementById('ec_title').value=p.title||'';
   document.getElementById('ec_cat_wrap').style.display='';
@@ -791,7 +791,7 @@ async function loadUsers(){
   }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
 }
 
-const UTYPE = {post:'校园墙/帖子', question:'问答', topic:'论坛', material:'资料', comment:'评论'};
+const UTYPE = {post:'校园墙/帖子', material:'资料', comment:'评论'};
 const USTAT = {0:'待审核', 1:'已通过', 2:'已拒绝'};
 
 function renderUser(u){
@@ -802,8 +802,6 @@ function renderUser(u){
     '<span class="u-sub" style="margin-left:auto">'+fmt(u.created_at)+(u.last_ip? ' · IP '+esc(u.last_ip):'')+'</span></div>'+reason;
   html += '<div class="u-stats">'+
     '<span class="u-stat">帖子 '+u.cnt_posts+'</span>'+
-    '<span class="u-stat">问答 '+u.cnt_questions+'</span>'+
-    '<span class="u-stat">论坛 '+u.cnt_topics+'</span>'+
     '<span class="u-stat">资料 '+u.cnt_materials+'</span>'+
     '<span class="u-stat">评论 '+u.cnt_comments+'</span></div>';
   html += '<div class="u-acts">'+
@@ -835,7 +833,7 @@ function bindUserEvents(){
     } else if(btn.classList.contains('unban')){
       if(confirm('确定解封该用户？')) await userAct('admin_user_ban', {user_id:uid, ban:0});
     } else if(btn.classList.contains('del')){
-      if(confirm('确定删除该用户？其帖子/问答/论坛/资料/评论将一并删除，且不可恢复！')){
+      if(confirm('确定删除该用户？其帖子/资料/评论将一并删除，且不可恢复！')){
         await userAct('admin_user_delete', {user_id:uid});
       }
     } else if(btn.classList.contains('edit')){
@@ -846,7 +844,7 @@ function bindUserEvents(){
       openEditContent(btn.dataset.eid, btn.dataset.etype, uid);
     } else if(btn.classList.contains('cdel')){
       const cid = btn.dataset.cid, ctype = btn.dataset.ctype, uid2 = btn.dataset.uid2;
-      const map = {post:'admin_delete', question:'admin_qa_delete', topic:'admin_forum_delete', material:'admin_material_delete', comment:'admin_comment_delete'};
+      const map = {post:'admin_delete', material:'admin_material_delete', comment:'admin_comment_delete'};
       const param = (ctype==='post') ? 'post_id' : 'id';
       if(confirm('确定删除该条内容？')){
         const r = await fetch(API, {method:'POST', headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}), body:'action='+map[ctype]+'&'+param+'='+cid});
@@ -990,7 +988,7 @@ document.getElementById('em_submit').addEventListener('click', async ()=>{
   finally{ btn.disabled=false; btn.textContent='保存'; }
 });
 
-// 编辑文本内容（帖子/问答/论坛/评论）
+// 编辑文本内容（帖子 / 评论）
 let editEid='', editEtype='', editUid3='';
 function openEditContent(eid, etype, uid){
   editEid=eid; editEtype=etype; editUid3=uid;
@@ -1013,7 +1011,7 @@ document.getElementById('ec_submit').addEventListener('click', async ()=>{
   if(!content){ toast('正文不能为空'); return; }
   const btn=document.getElementById('ec_submit'); btn.disabled=true; btn.textContent='保存中…';
   try{
-    const map={post:'admin_post_edit',question:'admin_question_edit',topic:'admin_forum_edit',comment:'admin_comment_edit'};
+    const map={post:'admin_post_edit',comment:'admin_comment_edit'};
     let body='action='+map[editEtype]+'&id='+editEid+'&content='+encodeURIComponent(content);
     if(hasTitle) body+='&title='+encodeURIComponent(title);
     if(editEtype==='post') body+='&category='+encodeURIComponent(document.getElementById('ec_cat').value);
@@ -1342,7 +1340,7 @@ async function loadReports(){
 }
 function renderReportRow(r){
   const el=document.createElement('div'); el.className='pend-row';
-  const boards=['校园墙','树洞','论坛'];
+  const boards=['校园墙'];
   el.innerHTML='<div class="pr-main"><div class="pr-t"></div><div class="pr-s"></div><div class="rep-reason"></div></div>'+
     '<button class="act-takedown">下架并处理</button><button class="act-ignore">忽略</button>';
   el.querySelector('.pr-t').textContent='⚑ '+(r.excerpt||'（内容已删除）');
@@ -1439,7 +1437,7 @@ function renderPendingMat(m){
 // ===== 优质内容：集中查看 / 取消置顶 ====================================
 function renderFeaturedRow(p){
   const el=document.createElement('div'); el.className='pend-row';
-  const boards=['校园墙','树洞','论坛'];
+  const boards=['校园墙'];
   const text=p.content||'';
   el.innerHTML='<div class="pr-main"><div class="pr-t"></div><div class="pr-s"></div></div>'+
     '<button class="act-unfeature">✩ 取消置顶</button>';

@@ -1,7 +1,7 @@
 -- 第三阶段扩展：个人中心/消息、树洞、问答、论坛（增量迁移，可重复执行）
 
--- 帖子上扩展：board(0表白墙 1树洞 2论坛) 与 title(论坛用)
-ALTER TABLE posts ADD COLUMN board TINYINT NOT NULL DEFAULT 0 COMMENT '0表白墙 1树洞 2论坛';
+-- 帖子上扩展：board(0校园墙 1树洞 2论坛) 与 title(论坛用)
+ALTER TABLE posts ADD COLUMN board TINYINT NOT NULL DEFAULT 0 COMMENT '0校园墙 1树洞 2论坛';
 ALTER TABLE posts ADD COLUMN title VARCHAR(150) NULL COMMENT '论坛主题标题';
 ALTER TABLE posts ADD INDEX idx_board (board);
 

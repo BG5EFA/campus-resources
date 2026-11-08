@@ -40,6 +40,8 @@
   .btn-ghost{background:rgba(255,255,255,.8);border:1px solid var(--line);color:var(--blue-d);
     border-radius:10px;padding:8px 16px;font-size:14px;cursor:pointer;backdrop-filter:blur(4px);transition:.15s}
   .btn-ghost:hover{border-color:var(--blue);box-shadow:0 4px 12px var(--glow)}
+  a.btn-ghost{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;line-height:1.2}
+  .user-chip a.btn-ghost{padding:7px 12px;font-size:13px}
   .user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);
     border:1px solid var(--line);border-radius:30px;padding:5px 6px 5px 12px;backdrop-filter:blur(4px)}
   .user-chip .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));
@@ -236,6 +238,7 @@
   <div class="topbar" id="authArea">
     <button class="btn-ghost" id="loginBtn">登录</button>
     <button class="btn-ghost" id="regBtn">注册</button>
+    <a class="btn-ghost" href="me.html">👤 我的</a>
   </div>
 
   <nav class="nav">
@@ -440,6 +443,7 @@ function renderAuth(){
     area.innerHTML =
       '<div class="user-chip"><div class="av">'+letter+'</div>'+
       '<span class="nm">'+escHtml(ME.nickname)+'</span>'+
+      '<a class="btn-ghost" href="me.html">👤 我的</a>'+
       '<button class="btn-ghost" id="logoutBtn">退出</button></div>';
     document.getElementById('logoutBtn').addEventListener('click', logout);
     // 预填昵称
@@ -448,7 +452,8 @@ function renderAuth(){
   } else {
     area.innerHTML =
       '<button class="btn-ghost" id="loginBtn">登录</button>'+
-      '<button class="btn-ghost" id="regBtn">注册</button>';
+      '<button class="btn-ghost" id="regBtn">注册</button>'+
+      '<a class="btn-ghost" href="me.html">👤 我的</a>';
     document.getElementById('loginBtn').addEventListener('click', ()=>openAuth('login'));
     document.getElementById('regBtn').addEventListener('click', ()=>openAuth('reg'));
     document.getElementById('nickname').value = '';

@@ -100,6 +100,34 @@ function public_comments($rows)
     unset($r);
     return $rows;
 }
+// 后台设置内容匿名状态：is_anon 与前台显示名必须同步更新，
+// 否则「标记改了但 nickname 仍是昵称/匿名」，前台显示不会变化。
+// 匿名 => nickname 固定「匿名」；不匿名 => 管理员自定义名 > 账号昵称 > 原昵称 > 校园用户。
+// user_id / ip 一律不动，后台始终可溯源真实发布者。
+function set_content_anon($pdo, $type, $id, $anon, $displayName = '')
+{
+    $table = $type === 'comment' ? 'comments' : 'posts';
+    $id = (int) $id;
+    $stmt = $pdo->prepare("SELECT c.nickname, c.user_id, u.nickname AS account_nickname
+                           FROM `$table` c LEFT JOIN users u ON u.id = c.user_id WHERE c.id = ?");
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    if (!$row) json_out(['ok' => false, 'msg' => '内容不存在'], 404);
+    if ($anon) {
+        $nickname = '匿名';
+    } else {
+        $custom = trim((string) $displayName);
+        $nickname = $custom !== '' ? mb_substr($custom, 0, 50) : (string) ($row['account_nickname'] ?? '');
+        if ($nickname === '' || $nickname === '匿名') {
+            $old = (string) ($row['nickname'] ?? '');
+            $nickname = ($old !== '' && $old !== '匿名') ? $old : '校园用户';
+        }
+        $nickname = filter_bad_words($pdo, $nickname);
+    }
+    $pdo->prepare("UPDATE `$table` SET is_anon = ?, nickname = ? WHERE id = ?")
+        ->execute([$anon ? 1 : 0, $nickname, $id]);
+    return $nickname;
+}
 function add_notification($pdo, $user_id, $type, $ref_id, $message)
 {
     if (!$user_id) return;
@@ -1192,11 +1220,11 @@ switch ($action) {
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $uid = intval($_POST['user_id'] ?? 0);
         if ($uid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
-        $posts = $pdo->prepare("SELECT 'post' AS type, id, title, content, category, status, created_at, ip FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $posts = $pdo->prepare("SELECT 'post' AS type, id, title, content, nickname, is_anon, category, status, created_at, ip FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $posts->execute([$uid]);
-        $materials = $pdo->prepare("SELECT 'material' AS type, id, title AS content, description, NULL AS category, status, created_at, ip FROM materials WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $materials = $pdo->prepare("SELECT 'material' AS type, id, title AS content, description, NULL AS nickname, 0 AS is_anon, NULL AS category, status, created_at, ip FROM materials WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $materials->execute([$uid]);
-        $comments = $pdo->prepare("SELECT 'comment' AS type, id, content, NULL AS title, NULL AS category, NULL AS status, created_at, ip FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $comments = $pdo->prepare("SELECT 'comment' AS type, id, content, nickname, is_anon, NULL AS title, NULL AS category, NULL AS status, created_at, ip FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $comments->execute([$uid]);
         json_out(['ok' => true, 'contents' => array_merge(
             $posts->fetchAll(), $materials->fetchAll(), $comments->fetchAll()
@@ -1332,6 +1360,20 @@ switch ($action) {
         json_out(['ok' => true]);
         break;
 
+    // ===== 后台：一键设置发布内容 / 评论的匿名状态 =====
+    case 'admin_anon_set':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $id = intval($_POST['id'] ?? 0);
+        $type = (($_POST['type'] ?? 'post') === 'comment') ? 'comment' : 'post';
+        $value = (string) ($_POST['value'] ?? '');
+        if ($id <= 0 || !in_array($value, ['0', '1'], true)) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $nick = set_content_anon($pdo, $type, $id, $value === '1', (string) ($_POST['display_name'] ?? ''));
+        json_out(['ok' => true, 'nickname' => $nick, 'is_anon' => (int) $value,
+                  'msg' => $value === '1' ? '已设为匿名（前台显示「匿名」）' : '已取消匿名（前台显示昵称）']);
+        break;
+
     // ===== 后台：编辑文本内容（帖子 / 评论）=====
     case 'admin_post_edit':
     case 'admin_comment_edit':
@@ -1360,6 +1402,11 @@ switch ($action) {
             } else {
                 $pdo->prepare("UPDATE `$tbl` SET title = ?, content = ? WHERE id = ?")->execute([$title, $content, $id]);
             }
+        }
+        // 编辑弹窗里同时可切换匿名状态；未传该参数时保持原状态，兼容旧调用
+        if (isset($_POST['anonymous']) && in_array((string) $_POST['anonymous'], ['0', '1'], true)) {
+            $ctype = ($act === 'admin_comment_edit') ? 'comment' : 'post';
+            set_content_anon($pdo, $ctype, $id, $_POST['anonymous'] === '1', (string) ($_POST['display_name'] ?? ''));
         }
         json_out(['ok' => true]);
         break;

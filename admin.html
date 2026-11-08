@@ -96,6 +96,9 @@
   .act-feature{background:#e8a33b}
   .act-unfeature{background:#8c93a8}
   .act-anon{background:#8b6fb3}
+  .cmt-review-pic{display:inline-block;margin:2px 0 8px}
+  .cmt-review-pic img{max-width:150px;max-height:120px;object-fit:contain;border-radius:9px;
+    border:1px solid var(--line);background:#f4f9ff;cursor:zoom-in}
   .empty{text-align:center;color:var(--muted);padding:30px 0}
   .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(58,44,51,.92);
     color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;
@@ -642,14 +645,16 @@ function renderComment(c){
     '<div class="time">'+fmt(c.created_at)+(c.ip?' · IP '+esc(c.ip):'')+'</div>'+
     '<div class="sub">所属：'+(esc(c.post_title)||'校园墙内容')+'</div>'+
     '<div class="author-line">'+authorLine(c)+'</div></div></div>';
+  const cimg = safeImg(c.image);
   html += '<div class="content"></div>';
+  if(cimg) html += '<a class="cmt-review-pic" href="'+cimg+'" target="_blank" rel="noopener" title="点击查看原图"><img src="'+cimg+'" alt="评论图片"></a>';
   html += '<div class="acts">'+
     (c.status!==1?'<button class="act-approve" data-id="'+c.id+'">✓ 通过</button>':'')+
     (c.status!==2?'<button class="act-reject" data-id="'+c.id+'">✕ 拒绝</button>':'')+
     '<button class="act-anon" data-id="'+c.id+'">'+(cAnon?'👤 取消匿名':'🕶 设为匿名')+'</button>'+
     '<button class="act-delete" data-id="'+c.id+'">🗑 删除</button></div>';
   el.innerHTML = html;
-  el.querySelector('.content').textContent = c.content;
+  el.querySelector('.content').textContent = c.content || (cimg ? '[图片评论]' : '');
   el.querySelector('.act-approve')?.addEventListener('click',()=>commentAct('admin_comment_approve',c.id));
   el.querySelector('.act-reject')?.addEventListener('click',()=>commentAct('admin_comment_reject',c.id));
   el.querySelector('.act-anon')?.addEventListener('click',()=>toggleAnon('comment',c.id,cAnon?0:1));
@@ -921,7 +926,7 @@ async function loadUserContents(uid, box){
       const stTxt = (c.status===null||c.status===undefined) ? '' : (USTAT[c.status]||'');
       const raw = c.content||'';
       const pre = c.title ? (c.title+'｜') : '';
-      const text = pre + (raw.length>100 ? raw.slice(0,100)+'…' : raw);
+      const text = pre + (raw.length>100 ? raw.slice(0,100)+'…' : raw) + (c.image ? ' 📷' : '');
       const isMat = c.type==='material';
       const editable = (c.type==='post'||c.type==='question'||c.type==='topic'||c.type==='comment');
       row.innerHTML = '<span class="ctype">'+(UTYPE[c.type]||c.type)+'</span>'+

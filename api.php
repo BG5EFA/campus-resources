@@ -74,8 +74,21 @@ function public_posts($pdo, $rows)
 {
     $viewer = require_user($pdo);
     $vid = $viewer ? (int) $viewer['id'] : 0;
+    $fav = [];
+    // 收藏表由 migrate14.sql 创建；未执行迁移时优雅降级，不影响公开列表
+    if ($vid && $rows) {
+        try {
+            $ids = [];
+            foreach ($rows as $r) $ids[] = (int) $r['id'];
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $st = $pdo->prepare("SELECT post_id FROM favorites WHERE user_id = ? AND post_id IN ($ph)");
+            $st->execute(array_merge([$vid], $ids));
+            foreach ($st->fetchAll() as $f) $fav[(int) $f['post_id']] = 1;
+        } catch (Throwable $e) { $fav = []; }
+    }
     foreach ($rows as &$r) {
         $r['is_mine'] = ($vid && !empty($r['user_id']) && (int) $r['user_id'] === $vid) ? 1 : 0;
+        $r['is_favorited'] = isset($fav[(int) $r['id']]) ? 1 : 0;
         unset($r['user_id'], $r['ip']);
     }
     unset($r);
@@ -649,6 +662,48 @@ switch ($action) {
         $qs = $pdo->query("SELECT id, title, answer_count, created_at FROM questions WHERE user_id = $uid ORDER BY created_at DESC LIMIT 20")->fetchAll();
         $ts = $pdo->query("SELECT id, title, reply_count, created_at FROM forum_topics WHERE user_id = $uid ORDER BY created_at DESC LIMIT 20")->fetchAll();
         json_out(['ok' => true, 'posts' => $posts, 'materials' => $mats, 'questions' => $qs, 'topics' => $ts]);
+        break;
+
+    // ===== 用户：收藏 / 取消收藏（仅登录本人，帖子须存在）=====
+    case 'favorite_toggle':
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $user = require_user($pdo);
+        if (!$user) json_out(['ok' => false, 'msg' => '请先登录后收藏', 'need_login' => true], 401);
+        $pid = intval($_POST['post_id'] ?? 0);
+        if ($pid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $st = $pdo->prepare('SELECT id FROM posts WHERE id = ?');
+        $st->execute([$pid]);
+        if (!$st->fetch()) json_out(['ok' => false, 'msg' => '内容不存在'], 404);
+        $uid = (int) $user['id'];
+        $chk = $pdo->prepare('SELECT id FROM favorites WHERE user_id = ? AND post_id = ?');
+        $chk->execute([$uid, $pid]);
+        if ($chk->fetch()) {
+            $pdo->prepare('DELETE FROM favorites WHERE user_id = ? AND post_id = ?')->execute([$uid, $pid]);
+            json_out(['ok' => true, 'favorited' => 0, 'msg' => '已取消收藏']);
+        }
+        try {
+            $pdo->prepare('INSERT INTO favorites (user_id, post_id) VALUES (?, ?)')->execute([$uid, $pid]);
+        } catch (Throwable $e) {
+            // 唯一键冲突（并发重复提交）视为已收藏，保持幂等
+            json_out(['ok' => true, 'favorited' => 1, 'msg' => '已收藏']);
+        }
+        json_out(['ok' => true, 'favorited' => 1, 'msg' => '已收藏']);
+        break;
+
+    // ===== 用户：我的收藏（JOIN 已通过审核的帖子，自动忽略已删除内容）=====
+    case 'favorite_list':
+        $user = require_user($pdo);
+        if (!$user) json_out(['ok' => false, 'msg' => '请先登录'], 401);
+        $uid = (int) $user['id'];
+        $st = $pdo->prepare(
+            'SELECT p.*, f.created_at AS favorited_at FROM favorites f
+             JOIN posts p ON p.id = f.post_id
+             WHERE f.user_id = ? AND p.status = 1
+             ORDER BY f.created_at DESC, f.id DESC LIMIT 100'
+        );
+        $st->execute([$uid]);
+        $rows = public_posts($pdo, $st->fetchAll());
+        json_out(['ok' => true, 'list' => $rows, 'total' => count($rows)]);
         break;
 
     // ===== 消息：列表 + 未读 =====

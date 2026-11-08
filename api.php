@@ -357,6 +357,19 @@ function handle_material_upload($file)
     return ['stored' => $stored, 'orig' => $file['name'],
             'size' => @filesize($dir . $stored) ?: $file['size'], 'ext' => $ext];
 }
+// 删除评论 / 帖子时清理评论附带图片，避免 /uploads/ 留下孤儿文件
+function delete_upload_image($name)
+{
+    if (!is_string($name) || !preg_match('/^[a-f0-9]{32}\.(jpg|png|gif|webp)$/', $name)) return;
+    $path = UPLOAD_DIR . $name;
+    if (is_file($path)) @unlink($path);
+}
+function delete_comment_images($pdo, $postId)
+{
+    $st = $pdo->prepare('SELECT image FROM comments WHERE post_id = ? AND image IS NOT NULL');
+    $st->execute([$postId]);
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $img) delete_upload_image($img);
+}
 
 // ---------- 路由 ----------
 $action = $_REQUEST['action'] ?? '';
@@ -433,6 +446,21 @@ switch ($action) {
         json_out(['ok' => true, 'posts' => $adminMode ? $rows : public_posts($pdo, $rows)]);
         break;
 
+    // ===== 热门排行：按点赞数排名（公开、只读；过滤与排序都下推到 SQL）=====
+    case 'hot_rank':
+        $limit = intval($_GET['limit'] ?? 10);
+        if ($limit < 1) $limit = 10;
+        if ($limit > 20) $limit = 20;
+        $stmt = $pdo->query(
+            'SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+             FROM posts p
+             WHERE p.status = 1 AND p.board = 0 AND p.likes > 0
+             ORDER BY p.likes DESC, p.created_at DESC, p.id DESC
+             LIMIT ' . $limit
+        );
+        json_out(['ok' => true, 'posts' => public_posts($pdo, $stmt->fetchAll())]);
+        break;
+
     // ===== 帖子：发布（进入待审核）=====
     case 'create':
         if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
@@ -501,7 +529,15 @@ switch ($action) {
         if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
         $id = intval($_POST['post_id'] ?? 0);
         $content = trim($_POST['content'] ?? '');
-        if (mb_strlen($content) < 1 || mb_strlen($content) > 200) json_out(['ok' => false, 'msg' => '评论需在 1-200 字之间'], 400);
+        if (mb_strlen($content) > 200) json_out(['ok' => false, 'msg' => '评论不能超过 200 字'], 400);
+        // 评论可带一张图片，也可纯图片（文字为空）；格式/大小沿用发帖的校验与自动压缩
+        $imgFile = $_FILES['image'] ?? null;
+        $imgErr = is_array($imgFile) && isset($imgFile['error']) ? (int) $imgFile['error'] : UPLOAD_ERR_NO_FILE;
+        if ($imgErr !== UPLOAD_ERR_OK && $imgErr !== UPLOAD_ERR_NO_FILE) {
+            json_out(['ok' => false, 'msg' => '图片上传失败（错误码 ' . $imgErr . '），请压缩后重试'], 400);
+        }
+        $hasImage = ($imgErr === UPLOAD_ERR_OK);
+        if ($content === '' && !$hasImage) json_out(['ok' => false, 'msg' => '请写点内容或选一张图片'], 400);
         $nicknameRaw = trim($_POST['nickname'] ?? '');
         $anon = isset($_POST['anonymous']) && $_POST['anonymous'] === '1';
         $post = $pdo->prepare('SELECT id, user_id FROM posts WHERE id = ? AND status = 1');
@@ -516,10 +552,16 @@ switch ($action) {
         }
         $cuid = $user['id'];
         $isAnon = $anon ? 1 : 0;
+        $image = null;
+        if ($hasImage) {
+            if ($imgFile['size'] > image_max_size()) json_out(['ok' => false, 'msg' => '评论图片不能超过 10MB，请压缩后重试'], 400);
+            $image = handle_upload($imgFile);
+            if ($image === false) json_out(['ok' => false, 'msg' => '图片格式不支持或文件损坏，请使用 jpg/png/gif/webp'], 400);
+        }
         $nickname = filter_bad_words($pdo, $nickname);
         $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO comments (post_id, nickname, content, user_id, ip, status, is_anon) VALUES (?, ?, ?, ?, ?, 0, ?)')
-            ->execute([$id, $nickname, $content, $cuid, get_client_ip(), $isAnon]);
+        $pdo->prepare('INSERT INTO comments (post_id, nickname, content, image, user_id, ip, status, is_anon) VALUES (?, ?, ?, ?, ?, ?, 0, ?)')
+            ->execute([$id, $nickname, $content, $image, $cuid, get_client_ip(), $isAnon]);
         // 评论需审核，审核通过后再通知作者（见 admin_comment_approve）
         json_out(['ok' => true, 'msg' => '评论已提交，审核通过后将公开展示']);
         break;
@@ -551,7 +593,8 @@ switch ($action) {
         if (!$row) json_out(['ok' => false, 'msg' => '评论不存在'], 404);
         $pdo->prepare('UPDATE comments SET status = ? WHERE id = ?')->execute([$st, $id]);
         if ($st === 1 && $row['post_uid']) {
-            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的内容有一条新评论通过审核：' . mb_substr($row['content'], 0, 30));
+            $excerpt = trim((string) $row['content']) !== '' ? mb_substr($row['content'], 0, 30) : '[图片评论]';
+            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的内容有一条新评论通过审核：' . $excerpt);
         }
         json_out(['ok' => true, 'msg' => $st === 1 ? '已通过' : '已拒绝']);
         break;
@@ -937,6 +980,7 @@ switch ($action) {
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $id = intval($_POST['post_id'] ?? 0);
+        delete_comment_images($pdo, $id); // 级联删评论前先清评论配图
         $pdo->prepare('DELETE FROM posts WHERE id = ?')->execute([$id]);
         json_out(['ok' => true]);
         break;
@@ -1002,12 +1046,16 @@ switch ($action) {
         if (!$post || (int) $post['user_id'] !== (int) $user['id']) {
             json_out(['ok' => false, 'msg' => '只能删除自己发布的内容'], 403);
         }
+        $imgSt = $pdo->prepare('SELECT image FROM comments WHERE post_id = ? AND image IS NOT NULL');
+        $imgSt->execute([$id]);
+        $commentImages = $imgSt->fetchAll(PDO::FETCH_COLUMN);
         $pdo->beginTransaction();
         $pdo->prepare('DELETE FROM post_likes WHERE post_id = ?')->execute([$id]);
         try { $pdo->prepare('DELETE FROM reports WHERE post_id = ?')->execute([$id]); } catch (Throwable $e) {}
         $pdo->prepare('DELETE FROM comments WHERE post_id = ?')->execute([$id]);
         $pdo->prepare('DELETE FROM posts WHERE id = ?')->execute([$id]);
         $pdo->commit();
+        foreach ($commentImages as $img) delete_upload_image($img);
         json_out(['ok' => true, 'msg' => '已删除']);
         break;
 
@@ -1220,11 +1268,11 @@ switch ($action) {
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $uid = intval($_POST['user_id'] ?? 0);
         if ($uid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
-        $posts = $pdo->prepare("SELECT 'post' AS type, id, title, content, nickname, is_anon, category, status, created_at, ip FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $posts = $pdo->prepare("SELECT 'post' AS type, id, title, content, nickname, is_anon, NULL AS image, category, status, created_at, ip FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $posts->execute([$uid]);
-        $materials = $pdo->prepare("SELECT 'material' AS type, id, title AS content, description, NULL AS nickname, 0 AS is_anon, NULL AS category, status, created_at, ip FROM materials WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $materials = $pdo->prepare("SELECT 'material' AS type, id, title AS content, description, NULL AS nickname, 0 AS is_anon, NULL AS image, NULL AS category, status, created_at, ip FROM materials WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $materials->execute([$uid]);
-        $comments = $pdo->prepare("SELECT 'comment' AS type, id, content, nickname, is_anon, NULL AS title, NULL AS category, NULL AS status, created_at, ip FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $comments = $pdo->prepare("SELECT 'comment' AS type, id, content, nickname, is_anon, image, NULL AS title, NULL AS category, NULL AS status, created_at, ip FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
         $comments->execute([$uid]);
         json_out(['ok' => true, 'contents' => array_merge(
             $posts->fetchAll(), $materials->fetchAll(), $comments->fetchAll()
@@ -1236,7 +1284,11 @@ switch ($action) {
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $id = intval($_POST['id'] ?? 0);
+        $st = $pdo->prepare('SELECT image FROM comments WHERE id = ?');
+        $st->execute([$id]);
+        $img = $st->fetchColumn();
         $pdo->prepare('DELETE FROM comments WHERE id = ?')->execute([$id]);
+        delete_upload_image($img);
         json_out(['ok' => true]);
         break;
 

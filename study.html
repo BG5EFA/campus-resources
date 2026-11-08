@@ -240,7 +240,7 @@
     <label>用户名（3-20位）</label><input type="text" id="r_user" placeholder="用户名" autocomplete="username">
     <label>昵称（可选）</label><input type="text" id="r_nick" placeholder="昵称" maxlength="50">
     <label>密码（至少6位）</label><input type="password" id="r_pwd" placeholder="密码" autocomplete="new-password">
-    <label>邀请码（必填）</label>
+    <label>邀请码（注册必填）</label>
     <input type="text" id="r_inv" placeholder="请输入邀请码" maxlength="32" autocomplete="off">
     <label>验证码</label>
     <div class="captcha-row">
@@ -342,10 +342,12 @@ document.getElementById('l_submit').onclick=async()=>{
 };
 document.getElementById('r_submit').onclick=async()=>{
   const u=document.getElementById('r_user').value.trim(),nick=document.getElementById('r_nick').value.trim(),pw=document.getElementById('r_pwd').value.trim();
+  const inv=document.getElementById('r_inv').value.trim();
   if(!u||!pw){toast('请填写用户名和密码');return;}
+  if(!inv){toast('请填写邀请码');return;}
   const fd=new FormData();fd.append('action','register');fd.append('username',u);fd.append('password',pw);if(nick)fd.append('nickname',nick);
   fd.append('cid',curCap.reg);fd.append('captcha',document.getElementById('r_cap').value.trim());
-  fd.append('invite',document.getElementById('r_inv').value.trim());
+  fd.append('invite',inv);
   const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();
   if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功，欢迎 '+esc(d.nickname));document.getElementById('r_user').value='';document.getElementById('r_pwd').value='';document.getElementById('r_nick').value='';document.getElementById('r_inv').value='';document.getElementById('r_cap').value='';
     if(document.getElementById('studyGate')?.classList.contains('show')){ closeMask('studyGate'); loadMats(true); } }

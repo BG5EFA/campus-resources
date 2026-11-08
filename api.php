@@ -517,7 +517,7 @@ switch ($action) {
         if (!$row) json_out(['ok' => false, 'msg' => '评论不存在'], 404);
         $pdo->prepare('UPDATE comments SET status = ? WHERE id = ?')->execute([$st, $id]);
         if ($st === 1 && $row['post_uid']) {
-            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的' . ($row['board'] == 2 ? '帖子' : '表白') . '有一条新评论通过审核：' . mb_substr($row['content'], 0, 30));
+            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的' . ($row['board'] == 2 ? '帖子' : '内容') . '有一条新评论通过审核：' . mb_substr($row['content'], 0, 30));
         }
         json_out(['ok' => true, 'msg' => $st === 1 ? '已通过' : '已拒绝']);
         break;
@@ -1050,7 +1050,7 @@ switch ($action) {
         $p->execute([$id]);
         $row = $p->fetch();
         if ($row && $row['user_id']) {
-            $label = $row['board'] == 2 ? '论坛帖子' : '表白';
+            $label = $row['board'] == 2 ? '论坛帖子' : '校园墙内容';
             $msg = $st === 1 ? "你的{$label}已通过审核" : "你的{$label}未通过审核";
             add_notification($pdo, $row['user_id'], 'post_' . ($st === 1 ? 'approved' : 'rejected'), $id, $msg);
         }

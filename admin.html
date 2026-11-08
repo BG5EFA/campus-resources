@@ -194,6 +194,9 @@
   .rep-reason{font-size:12px;color:var(--muted);margin-top:3px;white-space:pre-wrap;word-break:break-word}
   .pend-row .act-takedown{background:#ff6b6b!important}
   .pend-row .act-ignore{background:#9aa4b2!important}
+  .post-cat{font-size:11px;color:#1a53c9;background:#eaf2ff;border-radius:7px;padding:2px 7px;margin-left:6px;display:inline-block}
+  .author-line{font-size:11px;color:#8a5a00;margin-top:4px;background:#fff6e0;border:1px solid #ffe4ad;border-radius:7px;padding:3px 7px;display:inline-block}
+  .mini-mask select{width:100%;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;background:#fff}
 </style>
 </head>
 <body>
@@ -527,6 +530,16 @@
       <label>标题（可留空）</label>
       <input type="text" id="ec_title" placeholder="标题，可留空" maxlength="150" autocomplete="off">
     </div>
+    <div id="ec_cat_wrap">
+      <label>分类标签（校园墙 / 树洞帖子）</label>
+      <select id="ec_cat">
+        <option value="love">💌 表白</option>
+        <option value="lost">🔎 寻物</option>
+        <option value="help">🙋 求助</option>
+        <option value="chat">💬 吐槽</option>
+        <option value="other">✨ 其他</option>
+      </select>
+    </div>
     <label>正文</label>
     <textarea id="ec_content" rows="6" placeholder="正文内容"></textarea>
     <div class="m-acts">
@@ -599,13 +612,20 @@ async function loadCommentReviews(){
     d.comments.forEach(c=>box.appendChild(renderComment(c)));
   }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
 }
+const CAT_LABEL={love:'💌 表白',lost:'🔎 寻物',help:'🙋 求助',chat:'💬 吐槽',other:'✨ 其他'};
+// 管理员溯源：前台匿名的内容，后台仍显示真实账号
+function authorLine(p){
+  const who = p.author_username ? ('@'+esc(p.author_username)+'（'+esc(p.author_nickname||'')+'）') : '无账号记录（旧游客投稿）';
+  return '👤 真实作者：'+who+(Number(p.is_anon)===1?' · 前台匿名':' · 前台显示昵称');
+}
 function renderComment(c){
   const el = document.createElement('div'); el.className='post';
   const badges = ['待审核','已通过','已拒绝'];
   let html = '<div class="top"><div class="avatar">'+(esc(c.nickname)[0]||'匿').toUpperCase()+'</div>'+
     '<div><div class="name">'+esc(c.nickname)+'<span class="badge s'+c.status+'">'+badges[c.status]+'</span></div>'+
     '<div class="time">'+fmt(c.created_at)+(c.ip?' · IP '+esc(c.ip):'')+'</div>'+
-    '<div class="sub">所属：'+(esc(c.post_title)||'帖子/表白')+'</div></div></div>';
+    '<div class="sub">所属：'+(esc(c.post_title)||'帖子/表白')+'</div>'+
+    '<div class="author-line">'+authorLine(c)+'</div></div></div>';
   html += '<div class="content"></div>';
   html += '<div class="acts">'+
     (c.status!==1?'<button class="act-approve" data-id="'+c.id+'">✓ 通过</button>':'')+
@@ -654,14 +674,16 @@ function render(p){
   const isFeat=Number(p.featured)===1;
   let html='<div class="top"><div class="avatar">'+(esc(p.nickname)[0]||'匿').toUpperCase()+'</div>'+
     '<div><div class="name">'+''+'<span class="badge s'+p.status+'">'+badges[p.status]+'</span>'+
-    (isFeat? '<span class="badge star">⭐ 优质</span>':'')+'</div>'+
-    '<div class="time">'+fmt(p.created_at)+(p.ip? ' · IP '+esc(p.ip):'')+'</div></div></div>';
+    (isFeat? '<span class="badge star">⭐ 优质</span>':'')+
+    '<span class="post-cat">'+esc(CAT_LABEL[p.category]||CAT_LABEL.other)+'</span></div>'+
+    '<div class="time">'+fmt(p.created_at)+(p.ip? ' · IP '+esc(p.ip):'')+'</div>'+
+    '<div class="author-line">'+authorLine(p)+'</div></div></div>';
   html+='<div class="content"></div>';
   const img=safeImg(p.image); if(img) html+='<img class="pic" src="'+img+'">';
   html+='<div class="acts">'+
     (p.status!==1?'<button class="act-approve" data-id="'+p.id+'">✓ 通过</button>':'')+
     (p.status!==2?'<button class="act-reject" data-id="'+p.id+'">✕ 拒绝</button>':'')+
-    '<button class="act-edit" data-id="'+p.id+'">✏ 编辑文本</button>'+
+    '<button class="act-edit" data-id="'+p.id+'">✏ 编辑文本 / 标签</button>'+
     (isFeat? '<button class="act-unfeature" data-id="'+p.id+'">✩ 取消置顶</button>'
            : '<button class="act-feature" data-id="'+p.id+'">⭐ 设优质</button>')+
     '<button class="act-delete" data-id="'+p.id+'">🗑 删除</button></div>';
@@ -685,9 +707,11 @@ function render(p){
 // 审核面板：编辑帖子/匿名帖文本
 function openEditPostCard(p){
   editEid=p.id; editEtype='post'; editUid3=''; // ''=从审核面板入口，保存后刷新列表
-  document.getElementById('ec_heading').textContent='编辑文本（表白/树洞/帖子）';
+  document.getElementById('ec_heading').textContent='编辑文本 / 分类标签（校园墙 / 树洞）';
   document.getElementById('ec_title_wrap').style.display='';
   document.getElementById('ec_title').value=p.title||'';
+  document.getElementById('ec_cat_wrap').style.display='';
+  document.getElementById('ec_cat').value=CAT_LABEL[p.category]? p.category : 'other';
   document.getElementById('ec_content').value=p.content||'';
   openMini('editContentMask');
 }
@@ -856,12 +880,13 @@ async function loadUserContents(uid, box){
         (stTxt? '<span class="cstatus">'+stTxt+'</span>':'')+
         '<span class="ctime">'+fmt(c.created_at)+(c.ip? ' · IP '+esc(c.ip):'')+'</span>'+
         (isMat? '<button class="medit" data-mid="'+c.id+'" data-uid2="'+uid+'">编辑</button>':'')+
-        (editable? '<button class="cedit" data-eid="'+c.id+'" data-etype="'+c.type+'" data-uid2="'+uid+'">编辑文本</button>':'')+
+        (editable? '<button class="cedit" data-eid="'+c.id+'" data-etype="'+c.type+'" data-uid2="'+uid+'">'+(c.type==='post'?'编辑文本 / 标签':'编辑文本')+'</button>':'')+
         '<button class="cdel" data-cid="'+c.id+'" data-ctype="'+c.type+'" data-uid2="'+uid+'">删除</button>';
       row.querySelector('.ct').textContent = text;
       row.setAttribute('data-desc', c.description||'');
       row.setAttribute('data-title', c.title||'');
       row.setAttribute('data-content', c.content||'');
+      row.setAttribute('data-category', c.category||'other');
       box.appendChild(row);
     });
   }catch(_){ box.innerHTML='<div class="empty">加载失败</div>'; }
@@ -972,9 +997,12 @@ function openEditContent(eid, etype, uid){
   const box=document.getElementById('ucl_'+uid);
   const row=box? [...box.querySelectorAll('.content-row')].find(x=>x.querySelector('[data-eid="'+eid+'"]')) : null;
   const hasTitle = (etype!=='comment');
-  document.getElementById('ec_heading').textContent = '编辑'+(UTYPE[etype]||'文本');
+  const isPost = (etype==='post');
+  document.getElementById('ec_heading').textContent = '编辑'+(UTYPE[etype]||'文本')+(isPost?' / 分类标签':'');
   document.getElementById('ec_title_wrap').style.display = hasTitle? '' : 'none';
   document.getElementById('ec_title').value = row? (row.dataset.title||'') : '';
+  document.getElementById('ec_cat_wrap').style.display = isPost? '' : 'none';
+  document.getElementById('ec_cat').value = isPost? (row? (row.dataset.category||'other') : 'other') : 'other';
   document.getElementById('ec_content').value = row? (row.dataset.content||'') : '';
   openMini('editContentMask');
 }
@@ -988,6 +1016,7 @@ document.getElementById('ec_submit').addEventListener('click', async ()=>{
     const map={post:'admin_post_edit',question:'admin_question_edit',topic:'admin_forum_edit',comment:'admin_comment_edit'};
     let body='action='+map[editEtype]+'&id='+editEid+'&content='+encodeURIComponent(content);
     if(hasTitle) body+='&title='+encodeURIComponent(title);
+    if(editEtype==='post') body+='&category='+encodeURIComponent(document.getElementById('ec_cat').value);
     const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body});
     const d=await r.json();
     if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
@@ -1318,7 +1347,7 @@ function renderReportRow(r){
     '<button class="act-takedown">下架并处理</button><button class="act-ignore">忽略</button>';
   el.querySelector('.pr-t').textContent='⚑ '+(r.excerpt||'（内容已删除）');
   el.querySelector('.pr-s').textContent=(boards[Number(r.board)]||'校园墙')+' · '+(r.nickname||'匿名')+
-    ' · '+fmt(r.created_at)+' · IP '+(r.ip||'-');
+    ' · '+fmt(r.created_at)+' · IP '+(r.ip||'-')+' · 作者 @'+(r.author_username||'无账号');
   el.querySelector('.rep-reason').textContent=r.reason ? '原因：'+r.reason : '未填写原因';
   el.querySelector('.act-takedown').addEventListener('click',()=>handleReport(r.id,1,'确定下架这条内容并标记举报已处理？内容会立刻从前台消失。'));
   el.querySelector('.act-ignore').addEventListener('click',()=>handleReport(r.id,2,'确定忽略这条举报？内容会保留。'));
@@ -1416,7 +1445,8 @@ function renderFeaturedRow(p){
     '<button class="act-unfeature">✩ 取消置顶</button>';
   el.querySelector('.pr-t').textContent='⭐ '+(text.slice(0,48)+(text.length>48?'…':''));
   el.querySelector('.pr-s').textContent=(boards[Number(p.board)]||'校园墙')+' · '+(p.nickname||'匿名')+
-    ' · '+fmt(p.featured_at||p.created_at)+' · ❤ '+(p.likes||0)+' 💬 '+(p.comment_count||0);
+    ' · '+fmt(p.featured_at||p.created_at)+' · ❤ '+(p.likes||0)+' 💬 '+(p.comment_count||0)+
+    ' · 作者 @'+(p.author_username||'无账号');
   el.querySelector('.act-unfeature').addEventListener('click',async ()=>{
     const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),
       body:'action=admin_post_feature&post_id='+p.id+'&value=0'});

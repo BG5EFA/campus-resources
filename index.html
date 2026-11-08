@@ -128,12 +128,56 @@
   .feat-fav.fav-on{color:var(--blue-d);border-color:var(--blue);font-weight:600}
   .feat-tip{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
 
+  /* 热门排行：按点赞数实时排名 */
+  .hot-box{margin:14px 0 18px;padding:14px;border-radius:18px;
+    background:linear-gradient(135deg,#fff2ef,#fff 48%,#fff7e8);
+    border:1px solid #ffd9c9;box-shadow:0 8px 24px rgba(255,107,107,.12)}
+  .hot-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .hot-title{font-size:16px;font-weight:800;color:#c2410c}
+  .hot-sub{font-size:12px;color:var(--muted)}
+  .hot-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .hot-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid #ffe4d5;
+    border-radius:12px;padding:9px 11px;cursor:pointer;transition:.15s}
+  .hot-item:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(255,107,107,.16)}
+  .hot-rank{flex:0 0 26px;height:26px;border-radius:9px;background:#f3eee9;color:#8a7f78;
+    font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .hot-item.top1 .hot-rank{background:linear-gradient(135deg,#ffd76a,#ffb020);color:#7a4b00}
+  .hot-item.top2 .hot-rank{background:linear-gradient(135deg,#e2e8f0,#b9c4d2);color:#44546b}
+  .hot-item.top3 .hot-rank{background:linear-gradient(135deg,#f6c8a0,#dd9b64);color:#7a421a}
+  .hot-main{flex:1;min-width:0}
+  .hot-text{font-size:13px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .hot-item.expand .hot-text{display:block}
+  .hot-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:var(--muted)}
+  .hot-likes{color:#d2413b;font-weight:700;font-size:12px}
+  .hot-pic{display:block;max-width:90px;max-height:70px;object-fit:contain;border-radius:8px;
+    margin-top:6px;background:#fff4ef;cursor:zoom-in}
+  .hot-jump{border:none;background:#fff1ea;color:#c2410c;border-radius:9px;padding:4px 9px;
+    font-size:11px;cursor:pointer;font-family:inherit}
+  .hot-jump:hover{background:#ffdfd0}
+  .hot-tip{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+
+  /* 评论配图：输入框选图 + 列表缩略图 */
+  .cmt-form .cmt-img-btn{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--blue-d);
+    border:1px dashed #b9d2ff;background:#f4f9ff;border-radius:9px;padding:7px 10px;cursor:pointer;white-space:nowrap}
+  .cmt-form .cmt-img-btn input[type=file]{display:none}
+  .cmt-preview{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .cmt-preview img{max-width:90px;max-height:70px;object-fit:contain;border-radius:8px;
+    background:#f4f9ff;border:1px solid var(--line)}
+  .cmt-preview button{border:none;background:#ffe9e9;color:#c23b3b;border-radius:8px;
+    padding:4px 9px;font-size:12px;cursor:pointer;font-family:inherit}
+  .cmt-pic{display:block;max-width:min(100%,180px);max-height:160px;object-fit:contain;
+    border-radius:9px;margin-top:6px;background:#f4f9ff;cursor:zoom-in}
+
   /* 帖子 */
   .wall{margin-top:4px}
   .post{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin:12px 0;
     box-shadow:0 6px 18px rgba(47,123,255,.08);position:relative;overflow:hidden}
   .post::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
     background:linear-gradient(180deg,var(--blue),var(--cyan))}
+  .post.flash{animation:postFlash 1.6s ease}
+  @keyframes postFlash{0%,100%{box-shadow:0 6px 18px rgba(47,123,255,.08)}
+    35%{box-shadow:0 0 0 4px #ffd76a,0 8px 24px rgba(232,163,59,.35)}}
   .post .top{display:flex;align-items:center;gap:10px}
   .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));
     color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;flex-shrink:0}
@@ -308,6 +352,13 @@
     <div class="feat-tip">点卡片可展开全文，点图片看原图</div>
   </section>
 
+  <!-- 热门排行：按点赞数排名，点赞后实时刷新 -->
+  <section class="hot-box hidden" id="hotBox">
+    <div class="hot-head"><span class="hot-title">🔥 热门排行</span><span class="hot-sub">按点赞数排名 · 实时更新</span></div>
+    <ol class="hot-list" id="hotList"></ol>
+    <div class="hot-tip">点条目展开全文，点「查看原帖」跳到校园墙</div>
+  </section>
+
   <div class="filter-bar">
     <input type="search" id="searchInput" placeholder="🔍 搜索内容 / 昵称…" maxlength="50" autocomplete="off">
     <div class="cat-chips" id="catChips">
@@ -466,6 +517,7 @@ function renderAuth(){
   // 登录态确定后再渲染，保证 is_mine / is_favorited / 评论框状态正确
   loadPosts(true);
   loadFeatured();
+  loadHotRank();
 }
 function logout(){
   if(TOKEN){ fetch(API, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -564,6 +616,7 @@ async function toggleFavorite(pid, btn){
 function renderPost(p){
   const el = document.createElement('div');
   el.className = 'post';
+  el.dataset.pid = p.id; // 热门排行「查看原帖」据此定位
   const avatar = escHtml(String(escName(p.nickname)[0]||'匿').toUpperCase());
   const catLabel = CATS[p.category] || CATS.other;
   const mine = Number(p.is_mine) === 1; // 公开接口不返回作者 ID，仅告知本人
@@ -588,7 +641,11 @@ function renderPost(p){
   const cmtForm = TOKEN
     ? '<div class="cmt-form"><input type="text" placeholder="说点什么…" maxlength="200">'+
       '<label class="anon" title="勾选后评论只显示「匿名」"><input type="checkbox" class="cmt-anon"> 匿名</label>'+
-      '<button>发送</button></div>'
+      '<label class="cmt-img-btn" title="评论可带一张图片，≤10MB">📷 图片'+
+        '<input type="file" class="cmt-img-input" accept="image/jpeg,image/png,image/gif,image/webp"></label>'+
+      '<button>发送</button></div>'+
+      '<div class="cmt-preview hidden"><img class="cmt-prev-pic" alt="待发送图片预览">'+
+        '<button type="button" class="cmt-prev-del">✕ 移除</button></div>'
     : '<div class="cmt-gate">🔒 登录后才能评论 <button type="button" class="cmt-login">去登录</button></div>';
   html += '<div class="comments" data-id="'+p.id+'">'+
           '<div class="cmt-list"></div>'+ cmtForm +'</div>';
@@ -605,7 +662,7 @@ function renderPost(p){
       const r = await fetch(API, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
         body:'action=like&post_id='+p.id});
       const d = await r.json();
-      if(d.ok){ btn.querySelector('.cnt').textContent = d.likes; btn.classList.add('on'); }
+      if(d.ok){ btn.querySelector('.cnt').textContent = d.likes; btn.classList.add('on'); loadHotRank(); }
       else toast(d.msg);
     }catch(_){ toast('网络错误'); }
   });
@@ -619,23 +676,53 @@ function renderPost(p){
   });
   const cmtLoginBtn = el.querySelector('.cmt-login');
   if(cmtLoginBtn) cmtLoginBtn.addEventListener('click', ()=>openAuth('login'));
+
+  // 评论配图：本地预览 + 随 FormData 提交，支持纯图片评论
+  const imgSel = el.querySelector('.cmt-img-input');
+  const prevBox = el.querySelector('.cmt-preview');
+  const prevPic = el.querySelector('.cmt-prev-pic');
+  let cmtImgFile = null, cmtImgUrl = null;
+  function clearCmtImage(){
+    cmtImgFile = null;
+    if(cmtImgUrl){ URL.revokeObjectURL(cmtImgUrl); cmtImgUrl = null; }
+    if(imgSel) imgSel.value = '';
+    if(prevBox) prevBox.classList.add('hidden');
+  }
+  if(imgSel){
+    imgSel.addEventListener('change', ()=>{
+      const f = imgSel.files[0];
+      if(!f){ clearCmtImage(); return; }
+      const err = checkImage(f);
+      if(err){ toast(err); clearCmtImage(); return; }
+      if(cmtImgUrl) URL.revokeObjectURL(cmtImgUrl);
+      cmtImgFile = f; cmtImgUrl = URL.createObjectURL(f);
+      prevPic.src = cmtImgUrl;
+      prevBox.classList.remove('hidden');
+    });
+    const delPrev = el.querySelector('.cmt-prev-del');
+    if(delPrev) delPrev.addEventListener('click', clearCmtImage);
+  }
+
   const cmtSend = el.querySelector('.cmt-form button');
   if(cmtSend) cmtSend.addEventListener('click', async ()=>{
     const inp = el.querySelector('.cmt-form input[type=text]');
     const v = inp.value.trim();
-    if(!v) return;
+    if(!v && !cmtImgFile){ toast('写点什么或选一张图片吧'); return; }
     if(!TOKEN){ toast('请先登录后再评论'); openAuth('login'); return; }
     const fd = new FormData();
     fd.append('action','comment_add');
     fd.append('post_id', p.id);
     fd.append('content', v);
+    if(cmtImgFile) fd.append('image', cmtImgFile);
     if(TOKEN) fd.append('token', TOKEN);
     const anonChk = el.querySelector('.cmt-anon');
     if(anonChk && anonChk.checked) fd.append('anonymous','1');
-    const r = await fetch(API, {method:'POST', body:fd});
-    const d = await r.json();
-    if(d.ok){ inp.value=''; toast(d.msg); }   // 评论进入审核，不即时上屏/不计数的
-    else if(!handleLoginRequired(d)) toast(d.msg);
+    try{
+      const r = await fetch(API, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.ok){ inp.value=''; clearCmtImage(); toast(d.msg); } // 评论进入审核，不即时上屏
+      else if(!handleLoginRequired(d)) toast(d.msg);
+    }catch(_){ toast('网络错误'); }
   });
 
   el.querySelector('.act-fav').addEventListener('click', e=>toggleFavorite(p.id, e.currentTarget));
@@ -649,7 +736,7 @@ function renderPost(p){
     try{
       const r = await fetch(API, {method:'POST', body:fd});
       const d = await r.json();
-      if(d.ok){ el.remove(); toast('已删除'); loadFeatured(); }
+      if(d.ok){ el.remove(); toast('已删除'); loadFeatured(); loadHotRank(); }
       else toast(d.msg || '删除失败');
     }catch(_){ toast('网络错误'); }
   });
@@ -674,7 +761,15 @@ async function loadComments(id, box){
       div.className='cmt';
       const b = document.createElement('b'); b.textContent = escName(c.nickname)+'：';
       div.appendChild(b);
-      div.appendChild(document.createTextNode(c.content));
+      if(c.content) div.appendChild(document.createTextNode(c.content));
+      const im = safeImg(c.image);
+      if(im){
+        const pic = document.createElement('img'); pic.className='cmt-pic'; pic.src=im;
+        pic.alt='评论图片'; pic.title='点击查看原图';
+        pic.addEventListener('error', ()=>picFail(pic));
+        pic.addEventListener('click', ()=>openPic(pic.src));
+        div.appendChild(pic);
+      }
       list.appendChild(div);
     });
   }catch(_){ list.innerHTML='<div class="empty" style="padding:10px">加载失败</div>'; }
@@ -820,6 +915,65 @@ async function loadFeatured(){
     list.forEach(p=>wrap.appendChild(renderFeatureCard(p)));
     box.classList.remove('hidden');
   }catch(_){ box.classList.add('hidden'); }
+}
+
+// ---------- 热门排行：按点赞数排名 ----------
+function renderHotItem(p, rank){
+  const li = document.createElement('li');
+  li.className = 'hot-item' + (rank <= 3 ? ' top' + rank : '');
+  const num = document.createElement('span'); num.className='hot-rank'; num.textContent = rank;
+  const main = document.createElement('div'); main.className='hot-main';
+  const txt = document.createElement('div'); txt.className='hot-text';
+  txt.textContent = p.content || '[图片]';
+  main.appendChild(txt);
+  const im = safeImg(p.image);
+  if(im){
+    const pic = document.createElement('img'); pic.className='hot-pic'; pic.src=im;
+    pic.alt='配图'; pic.title='点击查看原图';
+    pic.addEventListener('error', ()=>picFail(pic));
+    pic.addEventListener('click', e=>{ e.stopPropagation(); openPic(pic.src); });
+    main.appendChild(pic);
+  }
+  const meta = document.createElement('div'); meta.className='hot-meta';
+  const likes = document.createElement('span'); likes.className='hot-likes'; likes.textContent='❤ '+(p.likes||0);
+  const cat = document.createElement('span'); cat.textContent = CATS[p.category] || CATS.other;
+  const who = document.createElement('span'); who.textContent = 'from '+escName(p.nickname);
+  const time = document.createElement('span'); time.textContent = fmtTime(p.created_at);
+  const jump = document.createElement('button'); jump.type='button'; jump.className='hot-jump';
+  jump.textContent='查看原帖 ↗';
+  jump.addEventListener('click', e=>{ e.stopPropagation(); jumpToPost(p.id); });
+  [likes, cat, who, time, jump].forEach(x=>meta.appendChild(x));
+  main.appendChild(meta);
+  li.appendChild(num); li.appendChild(main);
+  li.addEventListener('click', ()=>li.classList.toggle('expand'));
+  return li;
+}
+async function loadHotRank(){
+  const box = document.getElementById('hotBox'); if(!box) return;
+  try{
+    const r = await fetch(API+'?action=hot_rank&limit=10'+(TOKEN?'&token='+encodeURIComponent(TOKEN):''));
+    const d = await r.json();
+    const list = (d && d.ok && d.posts) || [];
+    if(!list.length){ box.classList.add('hidden'); return; }
+    const wrap = document.getElementById('hotList'); wrap.textContent='';
+    list.forEach((p,i)=>wrap.appendChild(renderHotItem(p, i+1)));
+    box.classList.remove('hidden');
+  }catch(_){ box.classList.add('hidden'); }
+}
+// 清除筛选后逐页加载，直到找到目标帖并高亮
+async function jumpToPost(pid){
+  curCat=''; curQ='';
+  document.getElementById('searchInput').value='';
+  document.querySelectorAll('#catChips button').forEach(x=>x.classList.toggle('on', x.dataset.cat===''));
+  await loadPosts(true);
+  for(let i=0;i<20;i++){
+    if(document.querySelector('.post[data-pid="'+pid+'"]') || noMore) break;
+    await loadPosts(false);
+  }
+  const target = document.querySelector('.post[data-pid="'+pid+'"]');
+  if(!target){ toast('这条内容暂时不在校园墙列表里'); return; }
+  target.scrollIntoView({behavior:'smooth', block:'center'});
+  target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash');
 }
 
 // 初始化

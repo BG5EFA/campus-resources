@@ -1,4 +1,4 @@
--- 校园表白墙 数据库结构（全新安装用）
+-- 校园墙 数据库结构（全新安装用）
 CREATE DATABASE IF NOT EXISTS biaobai DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE biaobai;
 
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS posts (
     status TINYINT NOT NULL DEFAULT 0 COMMENT '0待审核 1已通过 2已拒绝',
     featured TINYINT NOT NULL DEFAULT 0 COMMENT '0普通 1优质置顶',
     featured_at DATETIME NULL,
-    category VARCHAR(16) NOT NULL DEFAULT 'other' COMMENT 'love表白 lost寻物 help求助 chat吐槽 other其他',
+    category VARCHAR(16) NOT NULL DEFAULT 'other' COMMENT 'love寻人 lost寻物 help求助 chat吐槽 other其他',
     board TINYINT NOT NULL DEFAULT 0 COMMENT '0校园墙 1树洞 2论坛',
     likes INT NOT NULL DEFAULT 0,
     user_id INT NULL COMMENT '发布者账号（发布必须登录；前台接口不返回）',

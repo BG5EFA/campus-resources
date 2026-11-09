@@ -169,6 +169,25 @@ html[data-theme="dark"] .chip.active {
   background:linear-gradient(135deg,#2f6fd0,#3aa0d8) !important; color:#fff !important; border-color:transparent !important;
 }
 
+/* 后台：学习链接管理卡片与图标上传控件（深色） */
+html[data-theme="dark"] .content-row {
+  background:#1b2738 !important; color:var(--text) !important; border-color:var(--line) !important;
+}
+html[data-theme="dark"] .el-icon-prev { background:#26364f !important; border-color:#3a4d69 !important; }
+html[data-theme="dark"] .el-icon-ctl input[type=file] {
+  color:var(--text) !important; border-color:#3a4d69 !important; background:transparent !important;
+}
+html[data-theme="dark"] .el-icon-ctl small { color:var(--muted) !important; }
+html[data-theme="dark"] .el-icon-state { color:#7ddcaa !important; }
+html[data-theme="dark"] .el-icon-clear { background:#2b3b52 !important; color:#e7edf8 !important; }
+/* 后台模块标签：浅粉底 + 浅粉字在深色下不可读 */
+html[data-theme="dark"] .mod-tabs button:not(.on) {
+  background:#223148 !important; color:var(--text) !important; border-color:var(--line) !important;
+}
+html[data-theme="dark"] .mod-tabs button:not(.on) .tab-badge {
+  background:#33445f !important; color:var(--text) !important;
+}
+
 @media (max-width:600px) {
   #wbThemeWrap { right:12px; bottom:14px; }
   #wbThemeBtn { width:38px; height:38px; font-size:17px; }

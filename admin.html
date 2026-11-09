@@ -131,6 +131,13 @@
   .u-acts .unban{background:var(--green)}
   .u-acts .del{background:var(--red)}
   .u-acts .view{background:var(--pink)}
+  .u-acts .note{background:#8a7bd8}
+  .user-row .u-note{margin:8px 0 0;padding:8px 10px;border-radius:9px;background:rgba(255,107,157,.08);border:1px dashed var(--line);font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-word}
+  .user-row .u-note .n-tag{color:var(--pink-d);font-weight:600;margin-right:6px}
+  .user-row .u-note.empty{color:var(--muted)}
+  .mini-mask .nu-tip{font-size:11px;color:var(--muted);text-align:right;margin-top:4px}
+  .mini-mask .nu-privacy{font-size:12px;color:var(--pink-d);background:rgba(255,107,157,.1);border-radius:8px;padding:8px 10px;margin:10px 0 0;line-height:1.5}
+  .mini-mask .nu-privacy+.m-acts button{font-size:13px}
   .badge.b0{background:#ffe0e0;color:#c23b3b}
   .badge.b1{background:#d6f5e6;color:#1f8a57}
   .content-list{border-top:1px dashed var(--line);margin-top:8px;padding-top:6px}
@@ -462,6 +469,22 @@
     <div class="m-acts">
       <button class="m-cancel" data-close-mini>取消</button>
       <button class="m-ok" id="eu_submit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 用户内部备注弹窗（仅后台可见） -->
+<div class="mini-mask" id="noteUserMask">
+  <div class="box">
+    <h3>用户备注</h3>
+    <label>管理员内部备注（仅后台可见）</label>
+    <textarea id="nu_text" rows="5" maxlength="500" placeholder="例如：疑似小号需关注 / 已核实身份 / 志愿者"></textarea>
+    <div class="nu-tip"><span id="nu_count">0</span>/500</div>
+    <div class="nu-privacy">🔒 该备注仅管理员在后台可见，前台页面与所有前台接口都不会展示。</div>
+    <div class="m-acts">
+      <button class="m-cancel" id="nu_clear">清空</button>
+      <button class="m-cancel" data-close-mini>取消</button>
+      <button class="m-ok" id="nu_submit">保存</button>
     </div>
   </div>
 </div>
@@ -854,6 +877,7 @@ const USTAT = {0:'待审核', 1:'已通过', 2:'已拒绝'};
 
 function renderUser(u){
   const el = document.createElement('div'); el.className='user-row';
+  const note = u.admin_note || '';
   const stBadge = u.status==0 ? '<span class="badge b0">已封禁</span>' : '<span class="badge b1">正常</span>';
   const reason = (u.status==0 && u.ban_reason) ? '<div class="u-sub">封禁理由：'+esc(u.ban_reason)+'</div>' : '';
   let html = '<div class="u-top"><div class="u-name">'+esc(u.nickname)+' <span class="u-sub">@'+esc(u.username)+'</span></div>'+stBadge+
@@ -862,13 +886,17 @@ function renderUser(u){
     '<span class="u-stat">帖子 '+u.cnt_posts+'</span>'+
     '<span class="u-stat">资料 '+u.cnt_materials+'</span>'+
     '<span class="u-stat">评论 '+u.cnt_comments+'</span></div>';
+  html += '<div class="u-note'+(note?'':' empty')+'">'+
+    (note ? '<span class="n-tag">📝 备注 · 仅后台可见</span>'+escHtml(note) : '📝 暂无备注（仅后台可见）')+'</div>';
   html += '<div class="u-acts">'+
     '<button class="view" data-uid="'+u.id+'">查看上传</button>'+
+    '<button class="note" data-uid="'+u.id+'">'+(note?'编辑备注':'添加备注')+'</button>'+
     '<button class="edit" data-uid="'+u.id+'">编辑</button>'+
     (u.status==0 ? '<button class="unban" data-uid="'+u.id+'">解封</button>' : '<button class="ban" data-uid="'+u.id+'">封禁</button>')+
     '<button class="del" data-uid="'+u.id+'">删除用户</button></div>';
   html += '<div class="content-list hidden" id="ucl_'+u.id+'"></div>';
   el.innerHTML = html;
+  el.dataset.note = note;
   return el;
 }
 
@@ -878,7 +906,9 @@ function bindUserEvents(){
   list.addEventListener('click', async (e)=>{
     const btn = e.target.closest('button'); if(!btn) return;
     const uid = btn.dataset.uid; if(!uid) return;
-    if(btn.classList.contains('view')){
+    if(btn.classList.contains('note')){
+      openNoteUser(uid);
+    } else if(btn.classList.contains('view')){
       const box = document.getElementById('ucl_'+uid);
       if(box.classList.contains('hidden')){ await loadUserContents(uid, box); box.classList.remove('hidden'); }
       else box.classList.add('hidden');
@@ -987,6 +1017,39 @@ document.getElementById('cu_submit').addEventListener('click', async ()=>{
     toast('已创建用户：'+username); closeMini('createUserMask'); loadUsers();
   }catch(_){ toast('网络错误'); }
   finally{ btn.disabled=false; btn.textContent='创建'; }
+});
+
+// 用户内部备注（仅后台可见；独立接口，避免编辑用户时误覆盖封禁理由）
+let noteUid=null;
+function openNoteUser(uid){
+  noteUid=uid;
+  const row=[...document.querySelectorAll('.user-row')].find(x=>x.querySelector('.note[data-uid="'+uid+'"]'));
+  const text=row? (row.dataset.note||'') : '';
+  const ta=document.getElementById('nu_text');
+  ta.value=text;
+  document.getElementById('nu_count').textContent=text.length;
+  openMini('noteUserMask');
+  setTimeout(()=>ta.focus(), 50);
+}
+document.getElementById('nu_text').addEventListener('input', ()=>{
+  document.getElementById('nu_count').textContent=document.getElementById('nu_text').value.length;
+});
+document.getElementById('nu_clear').addEventListener('click', ()=>{
+  const ta=document.getElementById('nu_text');
+  ta.value=''; document.getElementById('nu_count').textContent='0'; ta.focus();
+});
+document.getElementById('nu_submit').addEventListener('click', async ()=>{
+  const note=document.getElementById('nu_text').value.trim();
+  const btn=document.getElementById('nu_submit'); btn.disabled=true; btn.textContent='保存中…';
+  try{
+    const body='action=admin_user_note&user_id='+encodeURIComponent(noteUid)+'&note='+encodeURIComponent(note);
+    const r=await fetch(API,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body});
+    const d=await r.json();
+    if(!d.ok){ if(r.status===401) return doLogout(); toast(d.msg); return; }
+    toast(note ? '备注已保存（仅后台可见）' : '备注已清空');
+    closeMini('noteUserMask'); loadUsers();
+  }catch(_){ toast('网络错误'); }
+  finally{ btn.disabled=false; btn.textContent='保存'; }
 });
 
 // 编辑用户

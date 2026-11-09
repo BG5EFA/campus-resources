@@ -90,7 +90,7 @@
   }
   function closeMenu(focus) {
     var menu = byId('wbThemeMenu'), btn = byId('wbThemeBtn');
-    if (!menu || !btn || !menu.classList.contains('open')) { if (focus && btn) btn.focus(); return; }
+    if (!menu || !btn || !menu.classList.contains('open')) return;
     menu.classList.remove('open');
     menu.setAttribute('aria-hidden', 'true');
     btn.setAttribute('aria-expanded', 'false');

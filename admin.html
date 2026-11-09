@@ -158,7 +158,8 @@
   #linkAdminList .content-row{background:#fff;border:1px solid var(--line);border-radius:10px;
     padding:10px 12px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
   .lk-ico{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
-    justify-content:center;font-size:19px;background:rgba(47,123,255,.12)}
+    justify-content:center;font-size:19px;background:rgba(47,123,255,.12);padding:0;overflow:hidden}
+  .lk-ico img{width:100%;height:100%;object-fit:cover;display:block;border-radius:9px}
   .lk-main{flex:1;min-width:180px}
   .lk-main .ct{font-weight:700;font-size:14px}
   .lk-url{font-size:11px;color:var(--blue-d);word-break:break-all;margin:2px 0;line-height:1.4}
@@ -167,6 +168,19 @@
   .lk-row .lk-open{font-size:12px;color:var(--blue-d);text-decoration:none;white-space:nowrap}
   .mini-mask .el-privacy{font-size:12px;color:var(--pink-d);background:rgba(255,107,157,.10);
     border-radius:8px;padding:8px 10px;margin:10px 0 0;line-height:1.5}
+  /* 学习链接图标照片上传 */
+  .el-icon-row{display:flex;align-items:center;gap:12px;margin:6px 0 2px}
+  .el-icon-prev{flex:0 0 auto;width:52px;height:52px;border-radius:12px;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;font-size:25px;
+    background:rgba(47,123,255,.12);border:1px solid var(--line)}
+  .el-icon-prev img{width:100%;height:100%;object-fit:cover;display:block}
+  .el-icon-ctl{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+  .el-icon-ctl input[type=file]{font-size:12px;padding:6px 4px;border:1px dashed var(--line);
+    border-radius:8px;background:transparent;color:var(--text)}
+  .el-icon-ctl small{font-size:11px;color:var(--muted);line-height:1.4}
+  .el-icon-clear{border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;
+    background:#f3eef0;color:var(--text)}
+  .el-icon-state{font-size:11px;font-weight:600;color:#12895a}
 
   /* 用户/资料 弹窗 */
   .up-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -589,7 +603,18 @@
     <input type="text" id="el_url" placeholder="https://example.com/course" maxlength="1000" autocomplete="off">
     <label>一句话说明（可选）</label>
     <input type="text" id="el_desc" placeholder="如：免费网课与电子教材" maxlength="500" autocomplete="off">
-    <label>图标（一个 emoji，可选）</label>
+    <label>图标照片（可选，上传后优先于 emoji 显示）</label>
+    <div class="el-icon-row">
+      <span class="el-icon-prev" id="el_icon_prev">🔗</span>
+      <div class="el-icon-ctl">
+        <input type="file" id="el_icon_file" accept="image/png,image/jpeg,image/gif,image/webp">
+        <button type="button" class="el-icon-clear" id="el_icon_clear" style="display:none">移除图片</button>
+        <small>支持 JPG / PNG / GIF / WEBP，最大 2MB；自动裁成方形并压缩</small>
+        <span class="el-icon-state" id="el_icon_state"></span>
+      </div>
+    </div>
+    <input type="hidden" id="el_icon_image" value="">
+    <label>备用图标（一个 emoji，无照片时显示）</label>
     <input type="text" id="el_icon" placeholder="🔗" maxlength="8" autocomplete="off">
     <label>排序（数字越小越靠前）</label>
     <input type="number" id="el_sort" value="0" autocomplete="off">
@@ -1312,7 +1337,11 @@ function safeLinkUrl(u){
 }
 function renderLinkRow(l){
   const el=document.createElement('div');el.className='content-row lk-row';
-  const ico=document.createElement('span');ico.className='lk-ico';ico.textContent=l.icon||'🔗';
+  const ico=document.createElement('span');ico.className='lk-ico';
+  if(l.icon_url){
+    const im=document.createElement('img');im.src=l.icon_url;im.alt='链接图标';
+    im.onerror=()=>{ico.textContent=l.icon||'🔗';};ico.appendChild(im);
+  }else ico.textContent=l.icon||'🔗';
   const main=document.createElement('div');main.className='lk-main';
   const t=document.createElement('div');t.className='ct';t.textContent=l.title||'未命名链接';
   const u=document.createElement('div');u.className='lk-url';u.textContent=l.url||'';
@@ -1350,6 +1379,17 @@ async function linkAct(action,params){
     return d;
   }catch(_){ return {ok:false,msg:'网络错误'}; }
 }
+function setElIcon(name,url,alreadySaved){
+  document.getElementById('el_icon_image').value=name||'';
+  const p=document.getElementById('el_icon_prev');p.innerHTML='';
+  if(url){
+    const im=document.createElement('img');im.src=url;im.alt='图标预览';
+    im.onerror=()=>{p.textContent=document.getElementById('el_icon').value.trim()||'🔗';};
+    p.appendChild(im);
+  }else p.textContent=document.getElementById('el_icon').value.trim()||'🔗';
+  document.getElementById('el_icon_clear').style.display=name?'inline-block':'none';
+  document.getElementById('el_icon_state').textContent=name?(alreadySaved?'✓ 当前使用图片图标':'✓ 已上传，保存后生效'):'';
+}
 function openLinkEditor(id){
   const l=id?linkAdminData[id]:null;
   editLinkId=l?+l.id:0;
@@ -1358,10 +1398,33 @@ function openLinkEditor(id){
   document.getElementById('el_url').value=l?(l.url||''):'https://';
   document.getElementById('el_desc').value=l?(l.description||''):'';
   document.getElementById('el_icon').value=l?(l.icon||''):'🔗';
+  document.getElementById('el_icon_file').value='';
+  setElIcon(l?(l.icon_image||''):'',l?(l.icon_url||''):'',true);
   document.getElementById('el_sort').value=l?(l.sort||0):0;
   document.getElementById('el_status').value=l?(String(l.status)):'1';
   openMini('editLinkMask');
 }
+document.getElementById('el_icon').addEventListener('input',()=>{
+  if(!document.getElementById('el_icon_image').value)
+    document.getElementById('el_icon_prev').textContent=document.getElementById('el_icon').value.trim()||'🔗';
+});
+document.getElementById('el_icon_clear').addEventListener('click',()=>{
+  setElIcon('','');document.getElementById('el_icon_file').value='';toast('已移除图标照片，保存后生效');
+});
+document.getElementById('el_icon_file').addEventListener('change',async(e)=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  if(f.size>2*1024*1024){toast('图标不能超过 2MB');e.target.value='';return;}
+  const inp=e.target,btn=document.getElementById('el_submit');
+  const fd=new FormData();fd.append('action','admin_study_link_icon_upload');fd.append('token',token);fd.append('icon',f);
+  btn.disabled=true;
+  try{
+    const r=await fetch(API,{method:'POST',headers:authHeaders(),body:fd});
+    const d=await r.json();
+    if(!d.ok){if(r.status===401)return doLogout();toast(d.msg||'图标上传失败');return;}
+    setElIcon(d.name,d.url);toast('图标已上传，保存后前台生效');
+  }catch(_){toast('网络错误，图标上传失败');}
+  finally{inp.value='';btn.disabled=false;}
+});
 document.getElementById('addLinkBtn').addEventListener('click',()=>openLinkEditor(0));
 document.getElementById('refreshLinks').addEventListener('click',loadLinksAdmin);
 document.getElementById('linkAdminList').addEventListener('click',async(e)=>{
@@ -1390,6 +1453,7 @@ document.getElementById('el_submit').addEventListener('click',async()=>{
   fd.append('id',String(editLinkId));fd.append('title',title);fd.append('url',url);
   fd.append('description',document.getElementById('el_desc').value.trim());
   fd.append('icon',document.getElementById('el_icon').value.trim());
+  fd.append('icon_image',document.getElementById('el_icon_image').value);
   fd.append('sort',document.getElementById('el_sort').value||'0');
   fd.append('status',document.getElementById('el_status').value);
   const btn=document.getElementById('el_submit');btn.disabled=true;btn.textContent='保存中…';

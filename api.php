@@ -42,6 +42,18 @@ function get_client_ip()
     }
     return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 }
+// 免登录学习链接：只接受标准 http/https 网址，杜绝 javascript:/data:/file: 等伪协议
+function validate_study_url($url)
+{
+    $url = trim((string) $url);
+    if ($url === '' || mb_strlen($url, 'UTF-8') > 1000) return null;
+    if (preg_match('/[\x00-\x1F\x7F]/', $url)) return null;
+    if (!preg_match('#^https?://#i', $url)) return null;
+    if (!filter_var($url, FILTER_VALIDATE_URL)) return null;
+    $p = parse_url($url);
+    if (!$p || empty($p['host']) || !in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true)) return null;
+    return $url;
+}
 function get_bearer_token()
 {
     $h = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
@@ -861,6 +873,27 @@ switch ($action) {
         json_out(['ok' => true]);
         break;
 
+    // ===== 学习专区：免登录公开链接（游客可读，点击直达外部网站）=====
+    case 'study_links':
+        $rows = $pdo->query('SELECT id, title, url, description, icon, sort FROM study_links WHERE status = 1 ORDER BY sort ASC, id DESC')->fetchAll();
+        // 即使库里被写入了非法网址，也绝不外抛给前台
+        foreach ($rows as &$r) {
+            if (!validate_study_url($r['url'])) $r['url'] = '';
+        }
+        unset($r);
+        json_out(['ok' => true, 'links' => $rows]);
+        break;
+
+    // 公开点击计数：轻量写入，不产生内容、不需要登录
+    case 'study_link_click':
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $lid = intval($_POST['id'] ?? 0);
+        if ($lid > 0) {
+            $pdo->prepare('UPDATE study_links SET clicks = clicks + 1 WHERE id = ? AND status = 1')->execute([$lid]);
+        }
+        json_out(['ok' => true]);
+        break;
+
     // ===== 资料：分类列表 =====
     case 'material_categories':
         $rows = $pdo->query('SELECT * FROM material_categories ORDER BY sort ASC, id ASC')->fetchAll();
@@ -1431,6 +1464,65 @@ switch ($action) {
         $pdo->prepare('UPDATE users SET admin_note = ? WHERE id = ?')
             ->execute([$note === '' ? null : $note, $uid]);
         json_out(['ok' => true, 'note' => $note]);
+        break;
+
+    // ===== 后台：免登录学习链接管理（仅管理员可读写）=====
+    case 'admin_study_links':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $rows = $pdo->query('SELECT * FROM study_links ORDER BY sort ASC, id DESC')->fetchAll();
+        json_out(['ok' => true, 'links' => $rows]);
+        break;
+
+    case 'admin_study_link_save':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $lid = intval($_POST['id'] ?? 0);
+        $title = trim((string) ($_POST['title'] ?? ''));
+        if (mb_strlen($title, 'UTF-8') < 2 || mb_strlen($title, 'UTF-8') > 150) json_out(['ok' => false, 'msg' => '名称需 2-150 字'], 400);
+        $url = validate_study_url($_POST['url'] ?? '');
+        if (!$url) json_out(['ok' => false, 'msg' => '网址需以 http:// 或 https:// 开头且格式正确'], 400);
+        $desc = mb_substr(trim((string) ($_POST['description'] ?? '')), 0, 500);
+        $icon = mb_substr(trim((string) ($_POST['icon'] ?? '')), 0, 8);
+        if ($icon === '') $icon = '🔗';
+        $sort = intval($_POST['sort'] ?? 0);
+        $status = (($_POST['status'] ?? '1') === '0') ? 0 : 1;
+        $title = filter_bad_words($pdo, $title);
+        $desc = filter_bad_words($pdo, $desc);
+        if ($lid > 0) {
+            $chk = $pdo->prepare('SELECT id FROM study_links WHERE id = ?');
+            $chk->execute([$lid]);
+            if (!$chk->fetch()) json_out(['ok' => false, 'msg' => '链接不存在'], 404);
+            $pdo->prepare('UPDATE study_links SET title = ?, url = ?, description = ?, icon = ?, sort = ?, status = ? WHERE id = ?')
+                ->execute([$title, $url, $desc, $icon, $sort, $status, $lid]);
+        } else {
+            $pdo->prepare('INSERT INTO study_links (title, url, description, icon, sort, status) VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([$title, $url, $desc, $icon, $sort, $status]);
+            $lid = (int) $pdo->lastInsertId();
+        }
+        json_out(['ok' => true, 'id' => $lid, 'msg' => '已保存']);
+        break;
+
+    case 'admin_study_link_status':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $lid = intval($_POST['id'] ?? 0);
+        $value = (string) ($_POST['value'] ?? '');
+        if ($lid <= 0 || !in_array($value, ['0', '1'], true)) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $pdo->prepare('UPDATE study_links SET status = ? WHERE id = ?')->execute([(int) $value, $lid]);
+        json_out(['ok' => true, 'msg' => $value === '1' ? '已启用' : '已停用']);
+        break;
+
+    case 'admin_study_link_delete':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $lid = intval($_POST['id'] ?? 0);
+        if ($lid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $pdo->prepare('DELETE FROM study_links WHERE id = ?')->execute([$lid]);
+        json_out(['ok' => true, 'msg' => '已删除']);
         break;
 
     // ===== 后台：编辑资料文件信息（标题 / 描述 / 状态） =====

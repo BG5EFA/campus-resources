@@ -128,34 +128,48 @@
   .feat-fav.fav-on{color:var(--blue-d);border-color:var(--blue);font-weight:600}
   .feat-tip{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
 
-  /* 热门排行：按点赞数实时排名 */
-  .hot-box{margin:14px 0 18px;padding:14px;border-radius:18px;
+  /* 热门速览：首屏常驻小模块（默认紧凑，只显示前 3 条） */
+  .hot-box{margin:12px 0 14px;padding:11px 12px;border-radius:16px;
     background:linear-gradient(135deg,#fff2ef,#fff 48%,#fff7e8);
-    border:1px solid #ffd9c9;box-shadow:0 8px 24px rgba(255,107,107,.12)}
-  .hot-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-  .hot-title{font-size:16px;font-weight:800;color:#c2410c}
-  .hot-sub{font-size:12px;color:var(--muted)}
-  .hot-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-  .hot-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid #ffe4d5;
-    border-radius:12px;padding:9px 11px;cursor:pointer;transition:.15s}
+    border:1px solid #ffd9c9;box-shadow:0 6px 18px rgba(255,107,107,.10)}
+  .hot-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .hot-title{font-size:15px;font-weight:800;color:#c2410c}
+  .hot-sub{font-size:11px;color:var(--muted)}
+  .hot-tabs{display:flex;gap:4px;margin-left:auto}
+  .hot-tab,.hot-toggle{border:1px solid #ffd9c9;background:#fff;color:#a5623f;border-radius:999px;
+    padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .hot-tab.on{background:#ff6b4a;border-color:#ff6b4a;color:#fff;font-weight:700}
+  .hot-toggle{background:#fff1ea;color:#c2410c}
+  .hot-tab:hover,.hot-toggle:hover{filter:brightness(.97)}
+  .hot-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .hot-item{display:flex;gap:9px;align-items:flex-start;background:#fff;border:1px solid #ffe4d5;
+    border-radius:11px;padding:8px 10px;cursor:pointer;transition:.15s}
   .hot-item:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(255,107,107,.16)}
-  .hot-rank{flex:0 0 26px;height:26px;border-radius:9px;background:#f3eee9;color:#8a7f78;
-    font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .hot-rank{flex:0 0 24px;height:24px;border-radius:8px;background:#f3eee9;color:#8a7f78;
+    font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
   .hot-item.top1 .hot-rank{background:linear-gradient(135deg,#ffd76a,#ffb020);color:#7a4b00}
   .hot-item.top2 .hot-rank{background:linear-gradient(135deg,#e2e8f0,#b9c4d2);color:#44546b}
   .hot-item.top3 .hot-rank{background:linear-gradient(135deg,#f6c8a0,#dd9b64);color:#7a421a}
   .hot-main{flex:1;min-width:0}
-  .hot-text{font-size:13px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;
+  .hot-text{font-size:13px;line-height:1.5;color:var(--text);white-space:pre-wrap;word-break:break-word;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .hot-item.expand .hot-text{display:block}
-  .hot-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:var(--muted)}
+  .hot-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:5px;font-size:11px;color:var(--muted)}
   .hot-likes{color:#d2413b;font-weight:700;font-size:12px}
   .hot-pic{display:block;max-width:90px;max-height:70px;object-fit:contain;border-radius:8px;
     margin-top:6px;background:#fff4ef;cursor:zoom-in}
   .hot-jump{border:none;background:#fff1ea;color:#c2410c;border-radius:9px;padding:4px 9px;
     font-size:11px;cursor:pointer;font-family:inherit}
   .hot-jump:hover{background:#ffdfd0}
-  .hot-tip{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+  .hot-tip{font-size:11px;color:var(--muted);margin-top:7px;text-align:center}
+  .hot-empty{font-size:12px;color:var(--muted);text-align:center;padding:10px 0}
+  .hot-box.compact .hot-list > li:nth-child(n+4){display:none}
+  .hot-box.compact .hot-item{padding:6px 9px}
+  .hot-box.compact .hot-text{-webkit-line-clamp:1}
+  .hot-box.compact .hot-pic{max-width:60px;max-height:44px}
+  .hot-box.compact .hot-meta span:nth-of-type(n+3){display:none}
+  .hot-box.compact .hot-tip{display:none}
+  @media(max-width:600px){ .hot-sub{display:none} .hot-tabs{margin-left:0} .hot-toggle{margin-left:auto} }
 
   /* 评论配图：输入框选图 + 列表缩略图 */
   .cmt-form .cmt-img-btn{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--blue-d);
@@ -315,6 +329,22 @@
     </svg>
   </header>
 
+  <!-- 热门速览：首屏常驻小模块，访客无需登录 / 滚动即可看见 -->
+  <section class="hot-box compact" id="hotBox">
+    <div class="hot-head">
+      <span class="hot-title">🔥 热门速览</span>
+      <span class="hot-sub" id="hotSub">按点赞数排名 · 实时更新</span>
+      <div class="hot-tabs" id="hotTabs">
+        <button type="button" class="hot-tab on" data-mode="hot">🔥 最热</button>
+        <button type="button" class="hot-tab" data-mode="recent">🕒 最近</button>
+      </div>
+      <button type="button" class="hot-toggle" id="hotToggle" aria-expanded="false">展开全部 ▾</button>
+    </div>
+    <ol class="hot-list" id="hotList"></ol>
+    <div class="hot-empty hidden" id="hotEmpty">暂时还没有上墙内容，来发第一条吧～</div>
+    <div class="hot-tip">点条目看全文 · 「查看原帖 ↗」跳到校园墙 <span id="hotCount"></span></div>
+  </section>
+
   <section class="composer">
     <div class="login-gate" id="loginGate">
       <div class="gate-ico">🔒</div>
@@ -350,13 +380,6 @@
     <div class="feat-head"><span class="feat-title">⭐ 优质内容</span><span class="feat-sub">管理员推荐 · 优先展示</span></div>
     <div class="feat-list" id="featList"></div>
     <div class="feat-tip">点卡片可展开全文，点图片看原图</div>
-  </section>
-
-  <!-- 热门排行：按点赞数排名，点赞后实时刷新 -->
-  <section class="hot-box hidden" id="hotBox">
-    <div class="hot-head"><span class="hot-title">🔥 热门排行</span><span class="hot-sub">按点赞数排名 · 实时更新</span></div>
-    <ol class="hot-list" id="hotList"></ol>
-    <div class="hot-tip">点条目展开全文，点「查看原帖」跳到校园墙</div>
   </section>
 
   <div class="filter-bar">
@@ -917,10 +940,12 @@ async function loadFeatured(){
   }catch(_){ box.classList.add('hidden'); }
 }
 
-// ---------- 热门排行：按点赞数排名 ----------
+// ---------- 热门速览：最热 / 最近 双模式 ----------
+let hotMode = 'hot';       // hot=按点赞数，recent=按最新发布
+let hotExpanded = false;   // 默认紧凑，只显示前 3 条
 function renderHotItem(p, rank){
   const li = document.createElement('li');
-  li.className = 'hot-item' + (rank <= 3 ? ' top' + rank : '');
+  li.className = 'hot-item' + (hotMode === 'hot' && rank <= 3 ? ' top' + rank : '');
   const num = document.createElement('span'); num.className='hot-rank'; num.textContent = rank;
   const main = document.createElement('div'); main.className='hot-main';
   const txt = document.createElement('div'); txt.className='hot-text';
@@ -948,18 +973,59 @@ function renderHotItem(p, rank){
   li.addEventListener('click', ()=>li.classList.toggle('expand'));
   return li;
 }
+function updateHotFoot(total){
+  const box = document.getElementById('hotBox');
+  const toggle = document.getElementById('hotToggle');
+  const cnt = document.getElementById('hotCount');
+  if(box) box.classList.toggle('compact', !hotExpanded);
+  if(toggle){
+    toggle.classList.toggle('hidden', total <= 3);
+    toggle.textContent = hotExpanded ? '收起 ▴' : '展开全部 ▾';
+    toggle.setAttribute('aria-expanded', hotExpanded ? 'true' : 'false');
+  }
+  if(cnt) cnt.textContent = total > 3 && !hotExpanded
+    ? '（共 '+total+' 条 · 展开看全部）'
+    : (total ? '（共 '+total+' 条）' : '');
+}
 async function loadHotRank(){
   const box = document.getElementById('hotBox'); if(!box) return;
+  const wrap = document.getElementById('hotList');
+  const empty = document.getElementById('hotEmpty');
+  const sub = document.getElementById('hotSub');
+  box.classList.remove('hidden');   // 常驻展示：即使暂时没有内容也保留模块
+  let list = [];
   try{
-    const r = await fetch(API+'?action=hot_rank&limit=10'+(TOKEN?'&token='+encodeURIComponent(TOKEN):''));
-    const d = await r.json();
-    const list = (d && d.ok && d.posts) || [];
-    if(!list.length){ box.classList.add('hidden'); return; }
-    const wrap = document.getElementById('hotList'); wrap.textContent='';
-    list.forEach((p,i)=>wrap.appendChild(renderHotItem(p, i+1)));
-    box.classList.remove('hidden');
-  }catch(_){ box.classList.add('hidden'); }
+    const auth = TOKEN ? '&token='+encodeURIComponent(TOKEN) : '';
+    if(hotMode === 'recent'){
+      // 复用公开列表接口：按发布时间倒序，让刚上墙的内容也能被访客看见
+      const r = await fetch(API+'?action=list&page=1'+auth);
+      const d = await r.json();
+      list = ((d && d.ok && d.posts) || []).slice()
+        .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))
+        .slice(0,10);
+    }else{
+      const r = await fetch(API+'?action=hot_rank&limit=10'+auth);
+      const d = await r.json();
+      list = (d && d.ok && d.posts) || [];
+    }
+  }catch(_){ list = []; }
+  if(sub) sub.textContent = hotMode==='recent' ? '最新发布 · 先看到刚上墙的内容' : '按点赞数排名 · 实时更新';
+  wrap.textContent = '';
+  list.forEach((p,i)=>wrap.appendChild(renderHotItem(p, i+1)));
+  if(empty) empty.classList.toggle('hidden', list.length > 0);
+  updateHotFoot(list.length);
 }
+document.getElementById('hotTabs')?.addEventListener('click', e=>{
+  const b = e.target.closest('button[data-mode]'); if(!b) return;
+  if(b.dataset.mode === hotMode) return;
+  hotMode = b.dataset.mode; hotExpanded = false;
+  document.querySelectorAll('#hotTabs .hot-tab').forEach(x=>x.classList.toggle('on', x===b));
+  loadHotRank();
+});
+document.getElementById('hotToggle')?.addEventListener('click', ()=>{
+  hotExpanded = !hotExpanded;
+  updateHotFoot(document.querySelectorAll('#hotList li').length);
+});
 // 清除筛选后逐页加载，直到找到目标帖并高亮
 async function jumpToPost(pid){
   curCat=''; curQ='';

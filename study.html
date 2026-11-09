@@ -150,7 +150,8 @@
     color:var(--text);transition:transform .15s,box-shadow .15s,border-color .15s}
   .link-card:hover{transform:translateY(-2px);border-color:var(--blue);box-shadow:0 6px 18px var(--glow)}
   .link-ico{flex:0 0 auto;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;
-    justify-content:center;font-size:19px;background:rgba(47,123,255,.12)}
+    justify-content:center;font-size:19px;background:rgba(47,123,255,.12);padding:0;overflow:hidden}
+  .link-ico img{width:100%;height:100%;object-fit:cover;display:block;border-radius:10px}
   .link-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
   .link-title{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word}
   .link-desc{font-size:11px;color:var(--muted);line-height:1.45;display:-webkit-box;
@@ -382,7 +383,11 @@ async function loadLinks(){
       const url=safeUrl(l.url);
       const a=document.createElement('a');a.className='link-card';
       if(url){a.href=url;a.target='_blank';a.rel='noopener noreferrer';}
-      const ico=document.createElement('span');ico.className='link-ico';ico.textContent=l.icon||'🔗';
+      const ico=document.createElement('span');ico.className='link-ico';
+      if(l.icon_url){
+        const im=document.createElement('img');im.src=l.icon_url;im.alt='';im.loading='lazy';
+        im.onerror=()=>{ico.textContent=l.icon||'🔗';};ico.appendChild(im);
+      }else ico.textContent=l.icon||'🔗';
       const main=document.createElement('span');main.className='link-main';
       const t=document.createElement('span');t.className='link-title';t.textContent=l.title||'未命名链接';
       main.appendChild(t);

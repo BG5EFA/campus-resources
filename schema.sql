@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS posts (
 CREATE TABLE IF NOT EXISTS comments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     post_id INT NOT NULL,
+    parent_id INT NOT NULL DEFAULT 0 COMMENT '0 顶层评论；回复指向所属顶层评论（仅一层楼中楼）',
+    reply_to VARCHAR(50) NULL COMMENT '被回复者当时的前台显示名',
     user_id INT NULL,
     nickname VARCHAR(50) NOT NULL DEFAULT '匿名',
     content TEXT NOT NULL,
@@ -38,7 +40,16 @@ CREATE TABLE IF NOT EXISTS comments (
     ip VARCHAR(45) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_post (post_id),
+    INDEX idx_parent (post_id, parent_id, status),
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS comment_likes (
+    comment_id INT NOT NULL,
+    ip VARCHAR(45) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (comment_id, ip),
+    FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS reports (

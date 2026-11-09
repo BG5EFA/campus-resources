@@ -412,9 +412,20 @@ switch ($action) {
             $where .= ' AND (LOCATE(:q, p.content) > 0 OR LOCATE(:q, p.title) > 0 OR LOCATE(:q, p.nickname) > 0)';
             $params[':q'] = $q;
         }
+        // 首页排序切换：latest 最新（优质置顶，默认）/ hot 按点赞 / featured 只看精选
+        $sort = trim((string) ($_GET['sort'] ?? 'latest'));
+        if (!in_array($sort, ['latest', 'hot', 'featured'], true)) $sort = 'latest';
+        if ($sort === 'featured') $where .= ' AND p.featured = 1';
+        if ($sort === 'hot') {
+            $order = ' ORDER BY p.likes DESC, p.created_at DESC, p.id DESC';
+        } elseif ($sort === 'featured') {
+            $order = ' ORDER BY p.featured_at DESC, p.created_at DESC, p.id DESC';
+        } else {
+            $order = ' ORDER BY p.featured DESC, p.created_at DESC, p.id DESC';
+        }
         $stmt = $pdo->prepare(
             'SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
-             FROM posts p ' . $where . ' ORDER BY p.featured DESC, p.created_at DESC
+             FROM posts p ' . $where . $order . '
              LIMIT ' . intval($per) . ' OFFSET ' . intval($offset)
         );
         $stmt->execute($params);
@@ -422,7 +433,8 @@ switch ($action) {
         $cnt = $pdo->prepare('SELECT COUNT(*) FROM posts p ' . $where);
         $cnt->execute($params);
         $total = $cnt->fetchColumn();
-        json_out(['ok' => true, 'posts' => $posts, 'page' => $page, 'per' => $per, 'total' => (int) $total]);
+        json_out(['ok' => true, 'posts' => $posts, 'page' => $page, 'per' => $per,
+                  'sort' => $sort, 'total' => (int) $total]);
         break;
 
     // ===== 优质内容：公开列表（首页顶部独立板块）=====
@@ -516,12 +528,41 @@ switch ($action) {
         json_out(['ok' => true, 'likes' => (int) $likes->fetchColumn()]);
         break;
 
-    // ===== 评论：列表（仅展示已通过审核）=====
+    // ===== 评论：列表（仅展示已通过审核；含楼中楼层级与点赞数）=====
     case 'comments':
         $id = intval($_GET['post_id'] ?? 0);
-        $stmt = $pdo->prepare('SELECT * FROM comments WHERE post_id = ? AND status = 1 ORDER BY created_at ASC');
-        $stmt->execute([$id]);
+        $ip = get_client_ip();
+        $stmt = $pdo->prepare(
+            'SELECT c.*,
+                    (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS like_count,
+                    (SELECT COUNT(*) FROM comment_likes cl2 WHERE cl2.comment_id = c.id AND cl2.ip = :ip) AS liked
+             FROM comments c WHERE c.post_id = :pid AND c.status = 1
+             ORDER BY c.created_at ASC, c.id ASC'
+        );
+        $stmt->execute([':ip' => $ip, ':pid' => $id]);
         json_out(['ok' => true, 'comments' => public_comments($stmt->fetchAll())]);
+        break;
+
+    // ===== 评论：点赞（按 IP 去重，可再次点击取消；访客也能点）=====
+    case 'comment_like':
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $cid = intval($_POST['comment_id'] ?? 0);
+        $ip = get_client_ip();
+        $c = $pdo->prepare('SELECT id FROM comments WHERE id = ? AND status = 1');
+        $c->execute([$cid]);
+        if (!$c->fetch()) json_out(['ok' => false, 'msg' => '评论不存在或尚未通过审核'], 400);
+        $chk = $pdo->prepare('SELECT 1 FROM comment_likes WHERE comment_id = ? AND ip = ?');
+        $chk->execute([$cid, $ip]);
+        if ($chk->fetch()) {
+            $pdo->prepare('DELETE FROM comment_likes WHERE comment_id = ? AND ip = ?')->execute([$cid, $ip]);
+            $liked = 0;
+        } else {
+            $pdo->prepare('INSERT INTO comment_likes (comment_id, ip) VALUES (?, ?)')->execute([$cid, $ip]);
+            $liked = 1;
+        }
+        $lc = $pdo->prepare('SELECT COUNT(*) FROM comment_likes WHERE comment_id = ?');
+        $lc->execute([$cid]);
+        json_out(['ok' => true, 'likes' => (int) $lc->fetchColumn(), 'liked' => $liked]);
         break;
 
     // ===== 评论：发表（进入待审核，审核通过后才公开展示）=====
@@ -544,6 +585,19 @@ switch ($action) {
         $post->execute([$id]);
         $prow = $post->fetch();
         if (!$prow) json_out(['ok' => false, 'msg' => '帖子不存在或未通过审核'], 400);
+        // 楼中楼：parent_id 指向被回复评论；只做一层，回复某条回复时归到其所属顶层评论
+        $parentId = intval($_POST['parent_id'] ?? 0);
+        $replyTo = null;
+        if ($parentId > 0) {
+            $pst = $pdo->prepare('SELECT id, parent_id, nickname, post_id, status FROM comments WHERE id = ?');
+            $pst->execute([$parentId]);
+            $target = $pst->fetch();
+            if (!$target || (int) $target['post_id'] !== $id || (int) $target['status'] !== 1) {
+                json_out(['ok' => false, 'msg' => '要回复的评论不存在'], 400);
+            }
+            $replyTo = mb_substr((string) $target['nickname'], 0, 50);
+            $parentId = ((int) $target['parent_id'] > 0) ? (int) $target['parent_id'] : (int) $target['id'];
+        }
         $user = $pub_user; // 统一发布门禁已保证登录
         if ($anon) {
             $nickname = '匿名';
@@ -560,10 +614,11 @@ switch ($action) {
         }
         $nickname = filter_bad_words($pdo, $nickname);
         $content = filter_bad_words($pdo, $content);
-        $pdo->prepare('INSERT INTO comments (post_id, nickname, content, image, user_id, ip, status, is_anon) VALUES (?, ?, ?, ?, ?, ?, 0, ?)')
-            ->execute([$id, $nickname, $content, $image, $cuid, get_client_ip(), $isAnon]);
-        // 评论需审核，审核通过后再通知作者（见 admin_comment_approve）
-        json_out(['ok' => true, 'msg' => '评论已提交，审核通过后将公开展示']);
+        $pdo->prepare('INSERT INTO comments (post_id, parent_id, reply_to, nickname, content, image, user_id, ip, status, is_anon)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)')
+            ->execute([$id, $parentId, $replyTo, $nickname, $content, $image, $cuid, get_client_ip(), $isAnon]);
+        // 评论需审核，审核通过后再通知帖子作者 / 被回复者（见 admin_comment_approve）
+        json_out(['ok' => true, 'msg' => $parentId ? '回复已提交，审核通过后将公开显示' : '评论已提交，审核通过后将公开展示']);
         break;
 
     // ===== 评论：后台审核列表 =====
@@ -592,9 +647,22 @@ switch ($action) {
         $row = $cm->fetch();
         if (!$row) json_out(['ok' => false, 'msg' => '评论不存在'], 404);
         $pdo->prepare('UPDATE comments SET status = ? WHERE id = ?')->execute([$st, $id]);
-        if ($st === 1 && $row['post_uid']) {
+        if ($st === 1) {
             $excerpt = trim((string) $row['content']) !== '' ? mb_substr($row['content'], 0, 30) : '[图片评论]';
-            add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的内容有一条新评论通过审核：' . $excerpt);
+            $replyUid = 0;
+            // 楼中楼：审核通过后提醒被回复者（@ 提醒），自己回复自己不打扰
+            if ((int) ($row['parent_id'] ?? 0) > 0) {
+                $pu = $pdo->prepare('SELECT user_id FROM comments WHERE id = ?');
+                $pu->execute([$row['parent_id']]);
+                $replyUid = (int) $pu->fetchColumn();
+                if ($replyUid && $replyUid !== (int) ($row['user_id'] ?? 0)) {
+                    add_notification($pdo, $replyUid, 'reply', $row['post_id'], '有人回复了你的评论：' . $excerpt);
+                }
+            }
+            // 帖子作者仍收到新评论提醒；同一人已是回复对象时不重复发
+            if ($row['post_uid'] && (int) $row['post_uid'] !== $replyUid) {
+                add_notification($pdo, $row['post_uid'], 'comment', $row['post_id'], '你的内容有一条新评论通过审核：' . $excerpt);
+            }
         }
         json_out(['ok' => true, 'msg' => $st === 1 ? '已通过' : '已拒绝']);
         break;

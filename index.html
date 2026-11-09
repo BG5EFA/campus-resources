@@ -231,6 +231,26 @@
     border-radius:9px;font-size:12px;color:#42608f;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .cmt-gate button{border:1px solid #cfe0ff;background:#fff;color:var(--blue-d);border-radius:8px;
     padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  /* 楼中楼回复 / 评论点赞 */
+  .cmt-thread{margin:9px 0}
+  .cmt-reply{margin-left:24px;background:#eaf2ff;border-left:2px solid #8ab4ff}
+  .cmt-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;margin-bottom:3px}
+  .cmt-head b{font-size:13px}
+  .cmt-at{color:var(--blue-d);font-weight:600}
+  .cmt-time{color:var(--muted);font-size:11px;margin-left:auto}
+  .cmt-body{white-space:pre-wrap;word-break:break-word;font-size:13px}
+  .cmt-acts{display:flex;gap:10px;margin-top:5px}
+  .cmt-acts button{border:none;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;
+    font-family:inherit;padding:2px 4px}
+  .cmt-acts button:hover{color:var(--blue-d)}
+  .cmt-acts .cmt-like.on{color:#d2413b;font-weight:700}
+  .cmt-reply-form{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px}
+  .cmt-reply-form input[type=text]{flex:1;min-width:120px;border:1px solid var(--line);border-radius:8px;
+    padding:7px 9px;font-size:12px;outline:none;background:#fff}
+  .cmt-reply-form .anon{font-size:12px;color:var(--muted)}
+  .cmt-reply-form button{border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  .cmt-reply-form .send{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff}
+  .cmt-reply-form .cancel{background:#eef3fb;color:var(--muted)}
 
   .more{display:block;width:100%;margin:16px 0;padding:12px;background:#fff;border:1px solid var(--line);
     border-radius:12px;color:var(--blue-d);font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(47,123,255,.06)}
@@ -273,6 +293,11 @@
   .cat-chips{display:flex;gap:6px;flex-wrap:wrap}
   .cat-chips button{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:20px;padding:5px 11px;font-size:12px;cursor:pointer}
   .cat-chips button.on{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border-color:transparent;font-weight:600}
+  /* 首页排序切换 */
+  .sort-tabs{display:flex;gap:6px;flex-wrap:wrap;border-left:1px solid var(--line);padding-left:9px}
+  .sort-tabs button{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:20px;
+    padding:5px 11px;font-size:12px;cursor:pointer;font-family:inherit}
+  .sort-tabs button.on{background:#fff1ea;border-color:#ffcaa8;color:#c2410c;font-weight:700}
   .cat-tag{display:inline-block;margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:#eef4ff;color:var(--blue-d);vertical-align:middle}
   .post .acts .act-mini{font-size:12px;opacity:.7}
   .post .acts .act-mini:hover{opacity:1;color:var(--blue-d)}
@@ -280,6 +305,8 @@
   .report-reason{width:100%;min-height:80px;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;resize:vertical;outline:none}
   .report-reason:focus{border-color:var(--blue)}
 </style>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <div class="bubble" style="width:160px;height:160px;left:-30px;top:120px"></div>
@@ -392,6 +419,11 @@
       <button data-cat="chat">💬 吐槽</button>
       <button data-cat="other">✨ 其他</button>
     </div>
+    <div class="sort-tabs" id="sortTabs" aria-label="内容排序">
+      <button data-sort="latest" class="on">🆕 最新</button>
+      <button data-sort="hot">🔥 最热</button>
+      <button data-sort="featured">⭐ 精选</button>
+    </div>
   </div>
 
   <div class="wall" id="wall"></div>
@@ -468,7 +500,7 @@ const API = 'api.php';
 let page = 1, loading = false, noMore = false;
 let TOKEN = localStorage.getItem('bb_token') || '';
 const CATS = {love:'👤 寻人', lost:'🔎 寻物', help:'🙋 求助', chat:'💬 吐槽', other:'✨ 其他'};
-let curCat = '', curQ = '', reportPostId = 0;
+let curCat = '', curQ = '', curSort = 'latest', reportPostId = 0;
 function escHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let ME = null;
 
@@ -575,6 +607,7 @@ async function loadPosts(reset){
   const wall = document.getElementById('wall');
   try{
     const r = await fetch(API+'?action=list&page='+page+
+      '&sort='+encodeURIComponent(curSort)+
       (curCat ? '&category='+encodeURIComponent(curCat) : '')+
       (curQ ? '&q='+encodeURIComponent(curQ) : '')+
       (TOKEN ? '&token='+encodeURIComponent(TOKEN) : ''));
@@ -771,6 +804,86 @@ function renderPost(p){
   return el;
 }
 
+// 单条评论：昵称 / @被回复者 / 时间 / 正文 / 图片 / 点赞 / 回复
+function renderComment(c, isReply, postId){
+  const div = document.createElement('div');
+  div.className = 'cmt' + (isReply ? ' cmt-reply' : '');
+  const head = document.createElement('div'); head.className = 'cmt-head';
+  const b = document.createElement('b'); b.textContent = escName(c.nickname)+'：'; head.appendChild(b);
+  if(c.reply_to){
+    const at = document.createElement('span'); at.className='cmt-at';
+    at.textContent = '@'+escName(c.reply_to); head.appendChild(at);
+  }
+  const t = document.createElement('span'); t.className='cmt-time';
+  t.textContent = fmtTime(c.created_at); head.appendChild(t);
+  div.appendChild(head);
+  const body = document.createElement('div'); body.className='cmt-body';
+  body.textContent = c.content || ''; div.appendChild(body);
+  const im = safeImg(c.image);
+  if(im){
+    const pic = document.createElement('img'); pic.className='cmt-pic'; pic.src=im;
+    pic.alt='评论图片'; pic.title='点击查看原图';
+    pic.addEventListener('error', ()=>picFail(pic));
+    pic.addEventListener('click', ()=>openPic(pic.src));
+    div.appendChild(pic);
+  }
+  const acts = document.createElement('div'); acts.className='cmt-acts';
+  const likeBtn = document.createElement('button');
+  likeBtn.type='button';
+  likeBtn.className = 'cmt-like' + (Number(c.liked)===1 ? ' on' : '');
+  likeBtn.innerHTML = '👍 <span>'+(Number(c.like_count)||0)+'</span>';
+  likeBtn.addEventListener('click', async ()=>{
+    try{
+      const r = await fetch(API, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'action=comment_like&comment_id='+c.id});
+      const d = await r.json();
+      if(d.ok){
+        likeBtn.querySelector('span').textContent = d.likes;
+        likeBtn.classList.toggle('on', !!d.liked);
+      } else toast(d.msg);
+    }catch(_){ toast('网络错误'); }
+  });
+  acts.appendChild(likeBtn);
+  if(TOKEN){
+    const rb = document.createElement('button');
+    rb.type='button'; rb.className='cmt-reply-btn'; rb.textContent='↩ 回复';
+    rb.addEventListener('click', ()=>openReplyForm(div, c, postId));
+    acts.appendChild(rb);
+  }
+  div.appendChild(acts);
+  return div;
+}
+// 回复表单：登录后可用，提交后仍进入审核，通过后才公开
+function openReplyForm(div, c, postId){
+  const old = div.querySelector('.cmt-reply-form');
+  if(old){ old.remove(); return; }
+  const form = document.createElement('div'); form.className='cmt-reply-form';
+  form.innerHTML = '<input type="text" maxlength="200" placeholder="回复 @'+escHtml(escName(c.nickname))+'…">'+
+    '<label class="anon"><input type="checkbox"> 匿名</label>'+
+    '<button type="button" class="send">发送</button>'+
+    '<button type="button" class="cancel">取消</button>';
+  const inp = form.querySelector('input[type=text]');
+  form.querySelector('.cancel').addEventListener('click', ()=>form.remove());
+  form.querySelector('.send').addEventListener('click', async ()=>{
+    const v = inp.value.trim();
+    if(!v){ toast('写点什么吧'); return; }
+    if(!TOKEN){ toast('请先登录后再回复'); openAuth('login'); return; }
+    const btn = form.querySelector('.send'); btn.disabled = true;
+    const fd = new FormData();
+    fd.append('action','comment_add'); fd.append('post_id', postId);
+    fd.append('content', v); fd.append('parent_id', c.id);
+    fd.append('token', TOKEN);
+    if(form.querySelector('.anon input').checked) fd.append('anonymous','1');
+    try{
+      const r = await fetch(API, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.ok){ form.remove(); toast(d.msg); }
+      else if(!handleLoginRequired(d)) toast(d.msg);
+    }catch(_){ toast('网络错误'); }
+    finally{ btn.disabled = false; }
+  });
+  div.appendChild(form); inp.focus();
+}
 async function loadComments(id, box){
   const list = box.querySelector('.cmt-list');
   list.innerHTML = '<div class="empty" style="padding:10px">加载中…</div>';
@@ -779,21 +892,19 @@ async function loadComments(id, box){
     const d = await r.json();
     list.innerHTML = '';
     if(!d.ok || d.comments.length===0){ list.innerHTML='<div class="empty" style="padding:10px">还没有评论</div>'; return; }
-    d.comments.forEach(c=>{
-      const div = document.createElement('div');
-      div.className='cmt';
-      const b = document.createElement('b'); b.textContent = escName(c.nickname)+'：';
-      div.appendChild(b);
-      if(c.content) div.appendChild(document.createTextNode(c.content));
-      const im = safeImg(c.image);
-      if(im){
-        const pic = document.createElement('img'); pic.className='cmt-pic'; pic.src=im;
-        pic.alt='评论图片'; pic.title='点击查看原图';
-        pic.addEventListener('error', ()=>picFail(pic));
-        pic.addEventListener('click', ()=>openPic(pic.src));
-        div.appendChild(pic);
-      }
-      list.appendChild(div);
+    const all = d.comments;
+    const tops = all.filter(c=>Number(c.parent_id)===0);
+    const topIds = new Set(tops.map(c=>Number(c.id)));
+    const replies = all.filter(c=>Number(c.parent_id)>0 && topIds.has(Number(c.parent_id)));
+    // 父评论被删的孤儿回复不丢，按顶层展示
+    const orphans = all.filter(c=>Number(c.parent_id)>0 && !topIds.has(Number(c.parent_id)));
+    const roots = tops.concat(orphans).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+    roots.forEach(c=>{
+      const th = document.createElement('div'); th.className='cmt-thread';
+      th.appendChild(renderComment(c, false, id));
+      replies.filter(x=>Number(x.parent_id)===Number(c.id))
+        .forEach(x=>th.appendChild(renderComment(x, true, id)));
+      list.appendChild(th);
     });
   }catch(_){ list.innerHTML='<div class="empty" style="padding:10px">加载失败</div>'; }
 }
@@ -1028,9 +1139,10 @@ document.getElementById('hotToggle')?.addEventListener('click', ()=>{
 });
 // 清除筛选后逐页加载，直到找到目标帖并高亮
 async function jumpToPost(pid){
-  curCat=''; curQ='';
+  curCat=''; curQ=''; curSort='latest';
   document.getElementById('searchInput').value='';
   document.querySelectorAll('#catChips button').forEach(x=>x.classList.toggle('on', x.dataset.cat===''));
+  document.querySelectorAll('#sortTabs button').forEach(x=>x.classList.toggle('on', x.dataset.sort==='latest'));
   await loadPosts(true);
   for(let i=0;i<20;i++){
     if(document.querySelector('.post[data-pid="'+pid+'"]') || noMore) break;
@@ -1045,6 +1157,13 @@ async function jumpToPost(pid){
 // 初始化
 // ---------- 分类筛选 / 搜索 / 举报 ----------
 let searchTimer = null;
+document.getElementById('sortTabs').addEventListener('click', e=>{
+  const b = e.target.closest('button[data-sort]'); if(!b) return;
+  if(b.dataset.sort === curSort) return;
+  curSort = b.dataset.sort;
+  document.querySelectorAll('#sortTabs button').forEach(x=>x.classList.toggle('on', x===b));
+  loadPosts(true);
+});
 document.getElementById('catChips').addEventListener('click', e=>{
   const b = e.target.closest('button[data-cat]'); if(!b) return;
   curCat = b.dataset.cat;

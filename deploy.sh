@@ -32,7 +32,10 @@ echo "📋 任务分解：部署前端+后端+数据库迁移+Nginx"
 echo "⚡ 目标: $SSH_USER@$SERVER_IP:$SSH_PORT  $REMOTE_DIR"
 
 # 1) 远端建目录
-run_ssh "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/uploads/materials' && chmod 755 '$REMOTE_DIR'"
+run_ssh "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/uploads/materials' '$REMOTE_DIR/uploads/linkicons' && chmod 755 '$REMOTE_DIR'"
+# 图标目录必须与 uploads 同属主（PHP-FPM 写权限）；root 直接 mkdir 会导致上传 500
+run_ssh "O=\$(stat -c '%U:%G' '$REMOTE_DIR/uploads' 2>/dev/null || echo www:www); case \"\$O\" in root:root) O=www:www;; esac; chown \"\$O\" '$REMOTE_DIR/uploads/linkicons' && chmod 755 '$REMOTE_DIR/uploads/linkicons'" \
+  || echo "   ⚠️ 图标目录属主设置失败，请手动 chown 到 PHP-FPM 用户"
 
 # 2) 上传源码（不覆盖 config.php）
 echo "⬆️  上传文件…"
@@ -57,6 +60,11 @@ has_tbl() {
   local t="$1"
   run_ssh "$MQL -N -e \"SHOW TABLES LIKE '$t'\" 2>/dev/null" 2>/dev/null | grep -c . || true
 }
+# 判断某张表是否有某列（返回 1 表示存在）
+has_col() {
+  local t="$1" c="$2"
+  run_ssh "$MQL -N -e \"SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$t' AND COLUMN_NAME='$c'\" 2>/dev/null" 2>/dev/null | tr -d '[:space:]'
+}
 run_sql_file() {
   local sql="$1"
   [ -f "$LOCAL_DIR/$sql" ] || { echo "   ⚠️ 缺少 $sql，跳过"; return; }
@@ -71,6 +79,7 @@ run_sql_file() {
 [ "$(has_tbl notifications)" = "0" ] && [ -f "$LOCAL_DIR/migrate3.sql" ] && { echo "   增量 → 消息通知"; run_sql_file migrate3.sql; }
 [ "$(has_tbl captcha)" = "0" ] && [ -f "$LOCAL_DIR/migrate4.sql" ] && { echo "   增量 → 验证码/邀请码"; run_sql_file migrate4.sql; }
 [ "$(has_tbl study_links)" = "0" ] && [ -f "$LOCAL_DIR/migrate19.sql" ] && { echo "   增量 → 免登录学习链接"; run_sql_file migrate19.sql; }
+[ "$(has_col study_links icon_image)" = "0" ] && [ -f "$LOCAL_DIR/migrate20.sql" ] && { echo "   增量 → 学习链接图标照片"; run_sql_file migrate20.sql; }
 echo "   迁移检查完成"
 
 # 4) Nginx 站点（端口 8080，独立站点，非子目录）

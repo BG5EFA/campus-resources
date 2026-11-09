@@ -70,6 +70,7 @@ run_sql_file() {
 [ "$(has_tbl material_categories)" = "0" ] && [ -f "$LOCAL_DIR/migrate2.sql" ] && { echo "   增量 → 学习资料"; run_sql_file migrate2.sql; }
 [ "$(has_tbl notifications)" = "0" ] && [ -f "$LOCAL_DIR/migrate3.sql" ] && { echo "   增量 → 消息通知"; run_sql_file migrate3.sql; }
 [ "$(has_tbl captcha)" = "0" ] && [ -f "$LOCAL_DIR/migrate4.sql" ] && { echo "   增量 → 验证码/邀请码"; run_sql_file migrate4.sql; }
+[ "$(has_tbl study_links)" = "0" ] && [ -f "$LOCAL_DIR/migrate19.sql" ] && { echo "   增量 → 免登录学习链接"; run_sql_file migrate19.sql; }
 echo "   迁移检查完成"
 
 # 4) Nginx 站点（端口 8080，独立站点，非子目录）

@@ -135,7 +135,39 @@
   .captcha-img{height:42px;border-radius:8px;border:1px solid var(--line);cursor:pointer;background:#f7fbff}
   .captcha-img:active{transform:scale(.97)}
 
-  @media(max-width:560px){.grid{grid-template-columns:1fr}.filters .search input{width:120px}}
+  /* 免登录学习网站直达（游客可见，点击跳转外部站点） */
+  .link-box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:14px 0;
+    box-shadow:0 8px 24px rgba(47,123,255,.10);position:relative;overflow:hidden}
+  .link-box::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+  .link-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+  .link-box h3{font-size:16px;color:var(--blue-d);font-weight:700}
+  .link-free{display:inline-block;font-size:11px;font-weight:600;border-radius:9px;padding:2px 8px;
+    background:rgba(47,123,255,.14);color:var(--blue-d);vertical-align:2px}
+  .link-sub{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.6}
+  .link-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .link-card{display:flex;align-items:center;gap:10px;min-height:66px;padding:11px 12px;
+    background:var(--card);border:1px solid var(--line);border-radius:13px;text-decoration:none;
+    color:var(--text);transition:transform .15s,box-shadow .15s,border-color .15s}
+  .link-card:hover{transform:translateY(-2px);border-color:var(--blue);box-shadow:0 6px 18px var(--glow)}
+  .link-ico{flex:0 0 auto;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;
+    justify-content:center;font-size:19px;background:rgba(47,123,255,.12)}
+  .link-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .link-title{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word}
+  .link-desc{font-size:11px;color:var(--muted);line-height:1.45;display:-webkit-box;
+    -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  .link-go{flex:0 0 auto;font-size:11px;color:var(--blue-d);font-weight:600;white-space:nowrap}
+  .link-empty{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;
+    padding:20px 10px;border:1px dashed var(--line);border-radius:12px}
+  /* 资料区登录提示（不再用遮罩挡住公开链接） */
+  .gate-inline{grid-column:1/-1;text-align:center;background:var(--card);border:1px dashed var(--line);
+    border-radius:14px;padding:22px 14px;color:var(--text)}
+  .gate-inline .gi-ico{font-size:26px;margin-bottom:6px}
+  .gate-inline b{display:block;font-size:15px;margin-bottom:6px}
+  .gate-inline p{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+  .gate-inline button{border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;
+    cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan))}
+
+  @media(max-width:560px){.grid{grid-template-columns:1fr}.filters .search input{width:120px}.link-grid{grid-template-columns:1fr}}
 </style>
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
@@ -170,6 +202,25 @@
     </svg>
   </header>
 
+  <!-- 免登录公开链接：管理员在后台维护，访客无需登录即可查看并点击跳转 -->
+  <section class="link-box" id="linkBox">
+    <div class="link-head"><h3>🔗 学习网站直达 <span class="link-free">免登录 · 点击即跳转</span></h3></div>
+    <p class="link-sub">网课、题库、官方学习平台等网址由管理员统一发布；点击卡片会在新窗口打开对应网站。本专区的学习资料下载仍需登录。</p>
+    <div class="link-grid" id="linkGrid"><div class="link-empty">正在加载学习网站链接…</div></div>
+  </section>
+
+  <div class="filters" id="filters">
+    <span class="chip active" data-cat="0">全部</span>
+    <!-- 分类由 JS 填充 -->
+    <div class="search">
+      <input type="text" id="searchInput" placeholder="搜索资料…">
+      <button id="searchBtn">搜索</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
+
   <section class="upload" id="uploadCard">
     <h3>📤 上传学习资料</h3>
     <div id="uploadForm">
@@ -186,18 +237,6 @@
       上传资料需要 <a id="toLogin2">登录</a> 后操作。
     </div>
   </section>
-
-  <div class="filters" id="filters">
-    <span class="chip active" data-cat="0">全部</span>
-    <!-- 分类由 JS 填充 -->
-    <div class="search">
-      <input type="text" id="searchInput" placeholder="搜索资料…">
-      <button id="searchBtn">搜索</button>
-    </div>
-  </div>
-
-  <div class="grid" id="grid"></div>
-  <button class="more" id="moreBtn" style="display:none">加载更多 ↓</button>
 
   <div class="foot">温州市滨海高级中学 · 学习专区</div>
 
@@ -302,7 +341,7 @@ function renderAuth(){
 }
 function logout(){
   if(TOKEN)fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=logout&token='+encodeURIComponent(TOKEN)}).catch(()=>{});
-  TOKEN='';ME=null;localStorage.removeItem('bb_token');renderAuth();toast('已退出');
+  TOKEN='';ME=null;localStorage.removeItem('bb_token');renderAuth();showGateInline();toast('已退出');
 }
 function openMask(id){document.getElementById(id).classList.add('show');}
 function closeMask(id){document.getElementById(id).classList.remove('show');}
@@ -311,6 +350,52 @@ function showStudyGate(){
   const lb=document.getElementById('gateLoginBtn'), rb=document.getElementById('gateRegBtn');
   if(lb) lb.onclick=()=>{closeMask('studyGate');openMask('loginMask');loadCaptcha('login');};
   if(rb) rb.onclick=()=>{closeMask('studyGate');openMask('regMask');loadCaptcha('reg');};
+}
+// 资料区行内登录提示：不遮挡上方免登录链接
+function showGateInline(){
+  const grid=document.getElementById('grid');
+  if(!grid||document.getElementById('gateInline'))return;
+  grid.innerHTML='';
+  const box=document.createElement('div');box.className='gate-inline';box.id='gateInline';
+  box.innerHTML='<div class="gi-ico">🔒</div><b>学习资料需登录后查看</b>'+
+    '<p>上方「学习网站直达」无需登录，点击即可访问；资料下载与上传需要登录。</p>'+
+    '<button type="button" id="gateInlineBtn">登录 / 注册后查看资料</button>';
+  document.getElementById('moreBtn').style.display='none';
+  grid.appendChild(box);
+  document.getElementById('gateInlineBtn').onclick=showStudyGate;
+}
+function hideGateInline(){const g=document.getElementById('gateInline');if(g)g.remove();}
+// ---------- 免登录学习网站链接 ----------
+function safeUrl(u){
+  try{const x=new URL(String(u));return (x.protocol==='http:'||x.protocol==='https:')?x.href:'';}catch(_){return '';}
+}
+async function loadLinks(){
+  const box=document.getElementById('linkGrid');if(!box)return;
+  try{
+    const r=await fetch(API+'?action=study_links',{cache:'no-store'});const d=await r.json();
+    box.innerHTML='';
+    if(!d.ok||!d.links||!d.links.length){
+      const e=document.createElement('div');e.className='link-empty';
+      e.textContent='管理员还没有添加学习网站链接';box.appendChild(e);return;
+    }
+    d.links.forEach(l=>{
+      const url=safeUrl(l.url);
+      const a=document.createElement('a');a.className='link-card';
+      if(url){a.href=url;a.target='_blank';a.rel='noopener noreferrer';}
+      const ico=document.createElement('span');ico.className='link-ico';ico.textContent=l.icon||'🔗';
+      const main=document.createElement('span');main.className='link-main';
+      const t=document.createElement('span');t.className='link-title';t.textContent=l.title||'未命名链接';
+      main.appendChild(t);
+      if(l.description){const ds=document.createElement('span');ds.className='link-desc';ds.textContent=l.description;main.appendChild(ds);}
+      const go=document.createElement('span');go.className='link-go';go.textContent=url?'↗ 打开':'链接不可用';
+      a.appendChild(ico);a.appendChild(main);a.appendChild(go);
+      if(url)a.addEventListener('click',()=>{
+        fetch(API,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:'action=study_link_click&id='+encodeURIComponent(l.id)}).catch(()=>{});
+      });
+      box.appendChild(a);
+    });
+  }catch(_){box.innerHTML='<div class="link-empty">链接加载失败，请刷新重试</div>';}
 }
 // ---------- 验证码 ----------
 let curCap={login:'',reg:''};
@@ -339,7 +424,7 @@ document.getElementById('l_submit').onclick=async()=>{
   fd.append('cid',curCap.login);fd.append('captcha',document.getElementById('l_cap').value.trim());
   const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();
   if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('loginMask');renderAuth();toast('登录成功，欢迎 '+esc(d.nickname));document.getElementById('l_pwd').value='';
-    if(document.getElementById('studyGate')?.classList.contains('show')){ closeMask('studyGate'); loadMats(true); } }
+    closeMask('studyGate'); hideGateInline(); loadMats(true); }
   else{toast(d.msg);loadCaptcha('login');}
 };
 document.getElementById('r_submit').onclick=async()=>{
@@ -352,7 +437,7 @@ document.getElementById('r_submit').onclick=async()=>{
   fd.append('invite',inv);
   const r=await fetch(API,{method:'POST',body:fd});const d=await r.json();
   if(d.ok){TOKEN=d.token;localStorage.setItem('bb_token',TOKEN);ME=d;closeMask('regMask');renderAuth();toast('注册成功，欢迎 '+esc(d.nickname));document.getElementById('r_user').value='';document.getElementById('r_pwd').value='';document.getElementById('r_nick').value='';document.getElementById('r_inv').value='';document.getElementById('r_cap').value='';
-    if(document.getElementById('studyGate')?.classList.contains('show')){ closeMask('studyGate'); loadMats(true); } }
+    closeMask('studyGate'); hideGateInline(); loadMats(true); }
   else{toast(d.msg);loadCaptcha('reg');}
 };
 
@@ -371,6 +456,7 @@ function setActiveCat(){document.querySelectorAll('#filters .chip').forEach(c=>c
 
 // 列表
 async function loadMats(reset){
+  if(!ME){ showGateInline(); return; }   // 未登录时只提示，不再弹遮罩挡住公开链接
   if(loading||(noMore&&!reset))return;loading=true;
   if(reset){page=1;noMore=false;document.getElementById('grid').innerHTML='';}
   const grid=document.getElementById('grid');
@@ -378,8 +464,7 @@ async function loadMats(reset){
     let url=API+'?action=material_list&page='+page+'&category='+curCat+'&q='+encodeURIComponent(curQ);
     if(TOKEN) url+='&token='+encodeURIComponent(TOKEN);
     const r=await fetch(url);const d=await r.json();
-    if(!d.ok){ if(d.msg&&d.msg.indexOf('登录')>=0){ showStudyGate(); } toast(d.msg||'加载失败'); return; }
-    if(!d.ok){toast(d.msg||'加载失败');return;}
+    if(!d.ok){ toast(d.msg||'加载失败'); if(!ME) showGateInline(); return; }
     if(d.materials.length===0&&page===1){grid.innerHTML='<div class="empty">还没有资料哦，快来分享第一份吧 📚</div>';noMore=true;}
     d.materials.forEach(m=>grid.appendChild(renderMat(m)));
     if(page*d.per>=d.total)noMore=true;
@@ -446,7 +531,9 @@ document.getElementById('searchInput').onkeydown=e=>{if(e.key==='Enter'){curQ=e.
 document.getElementById('moreBtn').onclick=()=>loadMats(false);
 function resetList(){loadMats(true);}
 
-loadCats();refreshUser().then(()=>{ if(!ME){ showStudyGate(); } else { loadMats(true); } });
+loadLinks();                      // 免登录链接始终加载，与登录状态无关
+loadCats();
+refreshUser().then(()=>{ if(!ME){ showGateInline(); } else { loadMats(true); } });
 </script>
 <script src="notice.js"></script>
 </body>

@@ -383,6 +383,91 @@ function delete_comment_images($pdo, $postId)
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $img) delete_upload_image($img);
 }
 
+// ---------- 学习链接图标（后台上传，前台只读静态文件）----------
+function link_icon_dir()
+{
+    return UPLOAD_DIR . 'linkicons/';
+}
+function link_icon_name_ok($name)
+{
+    return is_string($name) && preg_match('/^[a-f0-9]{32}\.(jpg|png|gif|webp)$/', $name) === 1;
+}
+function delete_link_icon($name)
+{
+    if (!link_icon_name_ok($name)) return;
+    $path = link_icon_dir() . $name;
+    if (is_file($path)) @unlink($path);
+}
+function link_icon_url($name)
+{
+    if (!link_icon_name_ok($name) || !is_file(link_icon_dir() . $name)) return '';
+    return '/uploads/linkicons/' . $name;
+}
+// 上传后未保存 / 已取消的临时图标，超过 1 小时自动回收（每次上传时顺带执行）
+function cleanup_orphan_link_icons($pdo)
+{
+    $dir = link_icon_dir();
+    if (!is_dir($dir)) return;
+    $used = [];
+    foreach ($pdo->query('SELECT icon_image FROM study_links WHERE icon_image IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN) as $n) {
+        if (link_icon_name_ok($n)) $used[$n] = true;
+    }
+    foreach (glob($dir . '*') ?: [] as $f) {
+        if (!is_file($f)) continue;
+        $n = basename($f);
+        if (!link_icon_name_ok($n) || isset($used[$n])) continue;
+        if (@filemtime($f) < time() - 3600) @unlink($f);
+    }
+}
+function handle_link_icon_upload($file)
+{
+    if (!is_array($file) || !isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) return null;
+    if ($file['size'] < 1 || $file['size'] > 2 * 1024 * 1024) return null; // 图标上限 2MB
+    $allowed = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_GIF => 'gif'];
+    if (defined('IMAGETYPE_WEBP')) $allowed[constant('IMAGETYPE_WEBP')] = 'webp';
+    $info = @getimagesize($file['tmp_name']); // 读真实图片头，扩展名不可信
+    $t = is_array($info) && isset($info[2]) ? $info[2] : 0;
+    if (!$t || !isset($allowed[$t])) return null;
+    if (!isset($info[0], $info[1]) || $info[0] * $info[1] > 20000000) return null;
+    $dir = link_icon_dir();
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $name = bin2hex(random_bytes(16)) . '.' . $allowed[$t];
+    $dest = $dir . $name;
+    if (!move_uploaded_file($file['tmp_name'], $dest)) return null;
+    @chmod($dest, 0644);
+
+    // 统一裁成 256×256 居中方形 PNG（保留透明）；GD 不可用或解码失败时保留原图
+    if (function_exists('imagecreatetruecolor')) {
+        $src = null;
+        if ($t === IMAGETYPE_JPEG && function_exists('imagecreatefromjpeg')) $src = @imagecreatefromjpeg($dest);
+        elseif ($t === IMAGETYPE_PNG && function_exists('imagecreatefrompng')) $src = @imagecreatefrompng($dest);
+        elseif (defined('IMAGETYPE_GIF') && $t === IMAGETYPE_GIF && function_exists('imagecreatefromgif')) $src = @imagecreatefromgif($dest);
+        elseif (defined('IMAGETYPE_WEBP') && $t === constant('IMAGETYPE_WEBP') && function_exists('imagecreatefromwebp')) $src = @imagecreatefromwebp($dest);
+        if ($src) {
+            $w = imagesx($src); $h = imagesy($src);
+            $side = min($w, $h);
+            $sx = (int) (($w - $side) / 2); $sy = (int) (($h - $side) / 2);
+            $canvas = @imagecreatetruecolor(256, 256);
+            if ($canvas) {
+                imagealphablending($canvas, false); imagesavealpha($canvas, true);
+                $clear = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+                imagefilledrectangle($canvas, 0, 0, 256, 256, $clear);
+                if (@imagecopyresampled($canvas, $src, 0, 0, $sx, $sy, 256, 256, $side, $side)) {
+                    $png = $dir . bin2hex(random_bytes(16)) . '.png';
+                    if (@imagepng($canvas, $png, 6) && is_file($png)) {
+                        @chmod($png, 0644);
+                        @unlink($dest);
+                        $name = basename($png);
+                    } else @unlink($png);
+                }
+                imagedestroy($canvas);
+            }
+            imagedestroy($src);
+        }
+    }
+    return $name;
+}
+
 // ---------- 路由 ----------
 $action = $_REQUEST['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -875,10 +960,12 @@ switch ($action) {
 
     // ===== 学习专区：免登录公开链接（游客可读，点击直达外部网站）=====
     case 'study_links':
-        $rows = $pdo->query('SELECT id, title, url, description, icon, sort FROM study_links WHERE status = 1 ORDER BY sort ASC, id DESC')->fetchAll();
-        // 即使库里被写入了非法网址，也绝不外抛给前台
+        $rows = $pdo->query('SELECT id, title, url, description, icon, icon_image, sort FROM study_links WHERE status = 1 ORDER BY sort ASC, id DESC')->fetchAll();
+        // 即使库里被写入了非法网址，也绝不外抛给前台；图标只回传校验过的静态路径
         foreach ($rows as &$r) {
             if (!validate_study_url($r['url'])) $r['url'] = '';
+            $r['icon_url'] = link_icon_url($r['icon_image']);
+            unset($r['icon_image']);
         }
         unset($r);
         json_out(['ok' => true, 'links' => $rows]);
@@ -1471,7 +1558,23 @@ switch ($action) {
         $adm = require_admin($pdo);
         if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
         $rows = $pdo->query('SELECT * FROM study_links ORDER BY sort ASC, id DESC')->fetchAll();
+        foreach ($rows as &$r) $r['icon_url'] = link_icon_url($r['icon_image']);
+        unset($r);
         json_out(['ok' => true, 'links' => $rows]);
+        break;
+
+    case 'admin_study_link_icon_upload':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
+        $iconDir = link_icon_dir();
+        if ((!is_dir($iconDir) && !@mkdir($iconDir, 0755, true)) || !is_writable($iconDir)) {
+            json_out(['ok' => false, 'msg' => '服务器图标目录不可写，请联系管理员'], 500);
+        }
+        cleanup_orphan_link_icons($pdo);
+        $name = handle_link_icon_upload($_FILES['icon'] ?? null);
+        if (!$name) json_out(['ok' => false, 'msg' => '请上传 2MB 以内的 JPG / PNG / GIF / WEBP 图片'], 400);
+        json_out(['ok' => true, 'name' => $name, 'url' => '/uploads/linkicons/' . $name]);
         break;
 
     case 'admin_study_link_save':
@@ -1486,22 +1589,30 @@ switch ($action) {
         $desc = mb_substr(trim((string) ($_POST['description'] ?? '')), 0, 500);
         $icon = mb_substr(trim((string) ($_POST['icon'] ?? '')), 0, 8);
         if ($icon === '') $icon = '🔗';
+        // 图标文件名只接受本接口生成的随机名，杜绝路径穿越与引用任意文件
+        $iconImage = trim((string) ($_POST['icon_image'] ?? ''));
+        if ($iconImage !== '' && (!link_icon_name_ok($iconImage) || !is_file(link_icon_dir() . $iconImage))) {
+            json_out(['ok' => false, 'msg' => '图标文件不存在，请重新上传'], 400);
+        }
+        $dbIcon = $iconImage === '' ? null : $iconImage;
         $sort = intval($_POST['sort'] ?? 0);
         $status = (($_POST['status'] ?? '1') === '0') ? 0 : 1;
         $title = filter_bad_words($pdo, $title);
         $desc = filter_bad_words($pdo, $desc);
         if ($lid > 0) {
-            $chk = $pdo->prepare('SELECT id FROM study_links WHERE id = ?');
+            $chk = $pdo->prepare('SELECT id, icon_image FROM study_links WHERE id = ?');
             $chk->execute([$lid]);
-            if (!$chk->fetch()) json_out(['ok' => false, 'msg' => '链接不存在'], 404);
-            $pdo->prepare('UPDATE study_links SET title = ?, url = ?, description = ?, icon = ?, sort = ?, status = ? WHERE id = ?')
-                ->execute([$title, $url, $desc, $icon, $sort, $status, $lid]);
+            $old = $chk->fetch();
+            if (!$old) json_out(['ok' => false, 'msg' => '链接不存在'], 404);
+            $pdo->prepare('UPDATE study_links SET title = ?, url = ?, description = ?, icon = ?, icon_image = ?, sort = ?, status = ? WHERE id = ?')
+                ->execute([$title, $url, $desc, $icon, $dbIcon, $sort, $status, $lid]);
+            if ($old['icon_image'] && $old['icon_image'] !== $dbIcon) delete_link_icon($old['icon_image']);
         } else {
-            $pdo->prepare('INSERT INTO study_links (title, url, description, icon, sort, status) VALUES (?, ?, ?, ?, ?, ?)')
-                ->execute([$title, $url, $desc, $icon, $sort, $status]);
+            $pdo->prepare('INSERT INTO study_links (title, url, description, icon, icon_image, sort, status) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$title, $url, $desc, $icon, $dbIcon, $sort, $status]);
             $lid = (int) $pdo->lastInsertId();
         }
-        json_out(['ok' => true, 'id' => $lid, 'msg' => '已保存']);
+        json_out(['ok' => true, 'id' => $lid, 'icon_url' => link_icon_url($dbIcon), 'msg' => '已保存']);
         break;
 
     case 'admin_study_link_status':
@@ -1521,7 +1632,11 @@ switch ($action) {
         if ($method !== 'POST') json_out(['ok' => false, 'msg' => '方法错误'], 405);
         $lid = intval($_POST['id'] ?? 0);
         if ($lid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        $st = $pdo->prepare('SELECT icon_image FROM study_links WHERE id = ?');
+        $st->execute([$lid]);
+        $oldIcon = $st->fetchColumn();
         $pdo->prepare('DELETE FROM study_links WHERE id = ?')->execute([$lid]);
+        if ($oldIcon) delete_link_icon($oldIcon);
         json_out(['ok' => true, 'msg' => '已删除']);
         break;
 

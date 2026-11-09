@@ -161,6 +161,14 @@ html[data-theme="dark"] .wb-theme-item.on b,
 html[data-theme="dark"] .wb-theme-item .ok { color:#a8c8ff; }
 html[data-theme="dark"] .wb-theme-hint { border-top-color:#33455f; }
 
+/* 学习专区：筛选标签 / 上传登录提示 / 选择文件按钮在深色下的白底问题 */
+html[data-theme="dark"] :is(.chip, .login-hint, .file-btn) {
+  background:#223148 !important; color:var(--text) !important; border-color:var(--line) !important;
+}
+html[data-theme="dark"] .chip.active {
+  background:linear-gradient(135deg,#2f6fd0,#3aa0d8) !important; color:#fff !important; border-color:transparent !important;
+}
+
 @media (max-width:600px) {
   #wbThemeWrap { right:12px; bottom:14px; }
   #wbThemeBtn { width:38px; height:38px; font-size:17px; }

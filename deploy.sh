@@ -36,7 +36,7 @@ run_ssh "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/uploads/materials' && chmod 755 '$R
 
 # 2) 上传源码（不覆盖 config.php）
 echo "⬆️  上传文件…"
-for f in api.php index.html study.html me.html admin.html; do
+for f in api.php index.html study.html info.html me.html admin.html theme.css theme.js notice.js; do
   run_scp_base64 "$LOCAL_DIR/$f" "$REMOTE_DIR/$f"
   echo "   ✓ $f"
 done

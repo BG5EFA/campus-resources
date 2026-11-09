@@ -735,6 +735,8 @@ switch ($action) {
         $u = $stmt->fetch();
         if (!$u || !password_verify($password, $u['password'])) json_out(['ok' => false, 'msg' => '账号或密码错误'], 401);
         if (isset($u['status']) && $u['status'] == 0) json_out(['ok' => false, 'msg' => '该账号已被封禁，请联系管理员'], 403);
+        // 敏感字段一律不留在用户数组里，杜绝后续误把整行带入响应
+        unset($u['password'], $u['admin_note']);
         $token = bin2hex(random_bytes(32));
         $exp = date('Y-m-d H:i:s', time() + 86400 * 30);
         $pdo->prepare('INSERT INTO user_tokens (token, user_id, expires_at) VALUES (?, ?, ?)')->execute([$token, $u['id'], $exp]);
@@ -1272,7 +1274,7 @@ switch ($action) {
         $filter = isset($_GET['status']) ? intval($_GET['status']) : -1;
         $where  = ($filter === 0 || $filter === 1) ? 'WHERE u.status = ' . $filter : '';
         $rows = $pdo->query(
-            "SELECT u.id, u.username, u.nickname, u.created_at, u.status, u.banned_at, u.ban_reason, u.last_ip,
+            "SELECT u.id, u.username, u.nickname, u.created_at, u.status, u.banned_at, u.ban_reason, u.last_ip, u.admin_note,
                     (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) AS cnt_posts,
                     (SELECT COUNT(*) FROM materials m WHERE m.user_id = u.id) AS cnt_materials,
                     (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id) AS cnt_comments
@@ -1412,6 +1414,23 @@ switch ($action) {
             }
         }
         json_out(['ok' => true]);
+        break;
+
+    // ===== 后台：设置用户内部备注（仅后台可见，前台所有接口均不返回） =====
+    case 'admin_user_note':
+        $adm = require_admin($pdo);
+        if (!$adm) json_out(['ok' => false, 'msg' => '未授权'], 401);
+        $uid = intval($_POST['user_id'] ?? 0);
+        if ($uid <= 0) json_out(['ok' => false, 'msg' => '参数错误'], 400);
+        if (!isset($_POST['note'])) json_out(['ok' => false, 'msg' => '缺少备注内容'], 400);
+        $note = trim((string) $_POST['note']);
+        if (mb_strlen($note) > 500) json_out(['ok' => false, 'msg' => '备注最多 500 字'], 400);
+        $chk = $pdo->prepare('SELECT id FROM users WHERE id = ?');
+        $chk->execute([$uid]);
+        if (!$chk->fetch()) json_out(['ok' => false, 'msg' => '用户不存在'], 404);
+        $pdo->prepare('UPDATE users SET admin_note = ? WHERE id = ?')
+            ->execute([$note === '' ? null : $note, $uid]);
+        json_out(['ok' => true, 'note' => $note]);
         break;
 
     // ===== 后台：编辑资料文件信息（标题 / 描述 / 状态） =====
